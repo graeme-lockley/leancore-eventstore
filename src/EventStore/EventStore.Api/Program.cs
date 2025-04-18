@@ -4,70 +4,78 @@ using EventStore.Domain.Health;
 using EventStore.Infrastructure.Health;
 using Swashbuckle.AspNetCore.Filters;
 
-var builder = WebApplication.CreateBuilder(args);
+namespace EventStore.Api;
 
-// Add services to the container
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.ConfigureSwagger();
-builder.Services.AddResponseCaching();
-
-// Configure Azure Storage
-var connectionString = builder.Configuration["AzureStorage:ConnectionString"];
-builder.Services.AddSingleton(new BlobServiceClient(connectionString));
-builder.Services.AddSingleton<IBlobServiceClient>(sp => 
-    new BlobServiceClientWrapper(sp.GetRequiredService<BlobServiceClient>()));
-
-// Configure health checks
-builder.Services.AddHealthCheckService(options =>
+public class Program
 {
-    options.EnableCaching = true;
-    options.CacheDuration = TimeSpan.FromSeconds(30);
-    options.EnableParallelExecution = true;
-    options.HealthCheckTimeout = TimeSpan.FromSeconds(5);
-});
-
-// Add System Health Check
-builder.Services.AddHealthCheck<SystemHealthCheck>();
-builder.Services.Configure<SystemHealthCheckOptions>(options =>
-{
-    options.MemoryThresholds = new MemoryThresholds
+    public static void Main(string[] args)
     {
-        DegradedBytes = 512L * 1024L * 1024L,    // 512 MB
-        UnhealthyBytes = 1024L * 1024L * 1024L   // 1 GB
-    };
-    options.ThreadPoolThresholds = new ThreadPoolThresholds
-    {
-        DegradedUtilization = 0.7,   // 70%
-        UnhealthyUtilization = 0.85  // 85%
-    };
-});
+        var builder = WebApplication.CreateBuilder(args);
 
-// Add Blob Storage Health Check
-builder.Services.AddHealthCheck<BlobStorageHealthCheck>();
-builder.Services.Configure<BlobStorageHealthCheckOptions>(options =>
-{
-    options.TimeoutMs = 5000;        // 5 seconds
-    options.IncludeDetailedInfo = true;
-});
+        // Add services to the container
+        builder.Services.AddControllers();
+        builder.Services.AddEndpointsApiExplorer();
+        builder.Services.ConfigureSwagger();
+        builder.Services.AddResponseCaching();
 
-var app = builder.Build();
+        // Configure Azure Storage
+        var connectionString = builder.Configuration["AzureStorage:ConnectionString"] ?? "UseDevelopmentStorage=true";
+        builder.Services.AddSingleton(new BlobServiceClient(connectionString));
+        builder.Services.AddSingleton<IBlobServiceClient>(sp => 
+            new BlobServiceClientWrapper(sp.GetRequiredService<BlobServiceClient>()));
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwaggerConfiguration();
-}
+        // Configure health checks
+        builder.Services.AddHealthCheckService(options =>
+        {
+            options.EnableCaching = true;
+            options.CacheDuration = TimeSpan.FromSeconds(30);
+            options.EnableParallelExecution = true;
+            options.HealthCheckTimeout = TimeSpan.FromSeconds(5);
+        });
 
-app.UseResponseCaching();
-app.UseAuthorization();
-app.MapControllers();
+        // Add System Health Check
+        builder.Services.AddHealthCheck<SystemHealthCheck>();
+        builder.Services.Configure<SystemHealthCheckOptions>(options =>
+        {
+            options.MemoryThresholds = new MemoryThresholds
+            {
+                DegradedBytes = 512L * 1024L * 1024L,    // 512 MB
+                UnhealthyBytes = 1024L * 1024L * 1024L   // 1 GB
+            };
+            options.ThreadPoolThresholds = new ThreadPoolThresholds
+            {
+                DegradedUtilization = 0.7,   // 70%
+                UnhealthyUtilization = 0.85  // 85%
+            };
+        });
 
-// Register health checks with the service
-var healthCheckService = app.Services.GetRequiredService<IHealthCheckService>();
-var serviceScope = app.Services.CreateScope();
-var systemHealthCheck = serviceScope.ServiceProvider.GetRequiredService<SystemHealthCheck>();
-var blobStorageHealthCheck = serviceScope.ServiceProvider.GetRequiredService<BlobStorageHealthCheck>();
-healthCheckService.RegisterHealthCheck(systemHealthCheck);
-healthCheckService.RegisterHealthCheck(blobStorageHealthCheck);
+        // Add Blob Storage Health Check
+        builder.Services.AddHealthCheck<BlobStorageHealthCheck>();
+        builder.Services.Configure<BlobStorageHealthCheckOptions>(options =>
+        {
+            options.TimeoutMs = 5000;        // 5 seconds
+            options.IncludeDetailedInfo = true;
+        });
 
-app.Run(); 
+        var app = builder.Build();
+
+        if (app.Environment.IsDevelopment())
+        {
+            app.UseSwaggerConfiguration();
+        }
+
+        app.UseResponseCaching();
+        app.UseAuthorization();
+        app.MapControllers();
+
+        // Register health checks with the service
+        var healthCheckService = app.Services.GetRequiredService<IHealthCheckService>();
+        var serviceScope = app.Services.CreateScope();
+        var systemHealthCheck = serviceScope.ServiceProvider.GetRequiredService<SystemHealthCheck>();
+        var blobStorageHealthCheck = serviceScope.ServiceProvider.GetRequiredService<BlobStorageHealthCheck>();
+        healthCheckService.RegisterHealthCheck(systemHealthCheck);
+        healthCheckService.RegisterHealthCheck(blobStorageHealthCheck);
+
+        app.Run();
+    }
+} 

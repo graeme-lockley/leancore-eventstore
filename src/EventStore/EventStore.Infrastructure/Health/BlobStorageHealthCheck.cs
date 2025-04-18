@@ -22,7 +22,21 @@ public class BlobServiceClientWrapper : IBlobServiceClient
         _client = client ?? throw new ArgumentNullException(nameof(client));
     }
 
-    public string AccountName => _client.AccountName;
+    public string AccountName
+    {
+        get
+        {
+            try
+            {
+                return _client.AccountName;
+            }
+            catch (ArgumentNullException)
+            {
+                // For development storage, return a default name
+                return "devstoreaccount1";
+            }
+        }
+    }
 
     public Task<Response<BlobServiceProperties>> GetPropertiesAsync(CancellationToken cancellationToken = default)
     {
@@ -67,7 +81,7 @@ public class BlobStorageHealthCheck : IHealthCheck
                 { "accountName", _blobServiceClient.AccountName }
             };
 
-            if (_options.IncludeDetailedInfo)
+            if (_options.IncludeDetailedInfo && properties?.Value != null)
             {
                 data["defaultServiceVersion"] = properties.Value.DefaultServiceVersion;
                 data["staticWebsiteEnabled"] = properties.Value.StaticWebsite?.Enabled ?? false;
