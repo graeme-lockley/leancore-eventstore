@@ -171,17 +171,34 @@ public class HealthControllerIntegrationTests : IClassFixture<WebApplicationFact
     }
 }
 
+/// <summary>
+/// A mock health check implementation that always returns an unhealthy status.
+/// Used for testing the health check system's handling of unhealthy components.
+/// </summary>
 public class MockUnhealthyCheck : MicrosoftHealthChecks.IHealthCheck
 {
     private readonly string _componentName;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="MockUnhealthyCheck"/> class.
+    /// </summary>
+    /// <param name="componentName">The name of the component this mock represents.</param>
     public MockUnhealthyCheck(string componentName)
     {
         _componentName = componentName;
     }
 
+    /// <summary>
+    /// Gets the name of the component being checked.
+    /// </summary>
     public string ComponentName => _componentName;
 
+    /// <summary>
+    /// Performs the health check, always returning an unhealthy result.
+    /// </summary>
+    /// <param name="context">The context under which the health check is being run.</param>
+    /// <param name="cancellationToken">A token that can be used to cancel the health check.</param>
+    /// <returns>A task that represents the asynchronous health check operation, always returning an unhealthy result.</returns>
     public Task<MicrosoftHealthChecks.HealthCheckResult> CheckHealthAsync(
         MicrosoftHealthChecks.HealthCheckContext context,
         CancellationToken cancellationToken = default)

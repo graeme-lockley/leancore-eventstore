@@ -7,21 +7,45 @@ using EventStore.Domain.Health;
 
 namespace EventStore.Infrastructure.Health;
 
+/// <summary>
+/// Defines the interface for interacting with Azure Blob Storage service.
+/// This abstraction allows for easier testing and mocking of blob storage operations.
+/// </summary>
 public interface IBlobServiceClient
 {
+    /// <summary>
+    /// Gets the name of the storage account.
+    /// </summary>
+    /// <value>The storage account name, or "devstoreaccount1" for local development storage.</value>
     string AccountName { get; }
+
+    /// <summary>
+    /// Gets the properties of the blob service asynchronously.
+    /// </summary>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>A response containing the blob service properties.</returns>
     Task<Response<BlobServiceProperties>> GetPropertiesAsync(CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Wraps the Azure BlobServiceClient to implement the IBlobServiceClient interface.
+/// Provides additional handling for development storage scenarios.
+/// </summary>
 public class BlobServiceClientWrapper : IBlobServiceClient
 {
     private readonly BlobServiceClient _client;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="BlobServiceClientWrapper"/> class.
+    /// </summary>
+    /// <param name="client">The Azure BlobServiceClient to wrap.</param>
+    /// <exception cref="ArgumentNullException">Thrown when client is null.</exception>
     public BlobServiceClientWrapper(BlobServiceClient client)
     {
         _client = client ?? throw new ArgumentNullException(nameof(client));
     }
 
+    /// <inheritdoc/>
     public string AccountName
     {
         get
@@ -38,6 +62,7 @@ public class BlobServiceClientWrapper : IBlobServiceClient
         }
     }
 
+    /// <inheritdoc/>
     public Task<Response<BlobServiceProperties>> GetPropertiesAsync(CancellationToken cancellationToken = default)
     {
         return _client.GetPropertiesAsync(cancellationToken);
@@ -45,7 +70,8 @@ public class BlobServiceClientWrapper : IBlobServiceClient
 }
 
 /// <summary>
-/// Health check implementation for Azure Blob Storage
+/// Implements a health check for Azure Blob Storage.
+/// Monitors the availability and performance of the blob storage service.
 /// </summary>
 public class BlobStorageHealthCheck : IHealthCheck
 {
@@ -53,8 +79,16 @@ public class BlobStorageHealthCheck : IHealthCheck
     private readonly ILogger<BlobStorageHealthCheck> _logger;
     private readonly BlobStorageHealthCheckOptions _options;
 
+    /// <inheritdoc/>
     public string ComponentName => "BlobStorage";
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="BlobStorageHealthCheck"/> class.
+    /// </summary>
+    /// <param name="blobServiceClient">The blob service client to use for health checks.</param>
+    /// <param name="logger">The logger for recording health check activities.</param>
+    /// <param name="options">Configuration options for the health check.</param>
+    /// <exception cref="ArgumentNullException">Thrown when any parameter is null.</exception>
     public BlobStorageHealthCheck(
         IBlobServiceClient blobServiceClient,
         ILogger<BlobStorageHealthCheck> logger,
@@ -65,6 +99,20 @@ public class BlobStorageHealthCheck : IHealthCheck
         _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
     }
 
+    /// <summary>
+    /// Performs a health check on the blob storage service.
+    /// </summary>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>
+    /// A <see cref="HealthCheckResult"/> indicating:
+    /// - Healthy: When the blob storage is accessible and responding within expected timeframes
+    /// - Degraded: When the operation times out
+    /// - Unhealthy: When the blob storage is inaccessible or encounters errors
+    /// </returns>
+    /// <remarks>
+    /// The health check attempts to retrieve blob service properties and measures the response time.
+    /// Additional diagnostic information is included in the result based on the configuration options.
+    /// </remarks>
     public async Task<HealthCheckResult> CheckHealthAsync(CancellationToken cancellationToken = default)
     {
         try

@@ -6,7 +6,8 @@ using EventStore.Domain.Health;
 namespace EventStore.Infrastructure.Health;
 
 /// <summary>
-/// Health check implementation for system metrics
+/// Implements a health check for monitoring system metrics including memory usage, thread pool status, and CPU utilization.
+/// This health check provides detailed information about the current state of the application process and system resources.
 /// </summary>
 public class SystemHealthCheck : IHealthCheck
 {
@@ -14,8 +15,15 @@ public class SystemHealthCheck : IHealthCheck
     private readonly SystemHealthCheckOptions _options;
     private readonly Process _currentProcess;
 
+    /// <inheritdoc/>
     public string ComponentName => "System";
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SystemHealthCheck"/> class.
+    /// </summary>
+    /// <param name="logger">The logger for recording health check activities.</param>
+    /// <param name="options">Configuration options for system health thresholds.</param>
+    /// <exception cref="ArgumentNullException">Thrown when logger or options is null.</exception>
     public SystemHealthCheck(
         ILogger<SystemHealthCheck> logger,
         IOptions<SystemHealthCheckOptions> options)
@@ -25,30 +33,38 @@ public class SystemHealthCheck : IHealthCheck
         _currentProcess = Process.GetCurrentProcess();
     }
 
+    /// <summary>
+    /// Performs a health check by gathering and analyzing system metrics.
+    /// </summary>
+    /// <param name="cancellationToken">A token to cancel the operation.</param>
+    /// <returns>
+    /// A <see cref="HealthCheckResult"/> containing:
+    /// - Status: Based on memory usage and thread pool utilization thresholds
+    /// - Description: Summary of the system's health
+    /// - Data: Detailed metrics including:
+    ///   * Memory usage (working set, private memory, managed memory)
+    ///   * GC collection counts
+    ///   * Thread pool statistics
+    ///   * CPU utilization
+    ///   * Process information (handles, threads, uptime)
+    /// </returns>
     public async Task<HealthCheckResult> CheckHealthAsync(CancellationToken cancellationToken = default)
     {
         try
         {
-            var metrics = await Task.Run(() => CollectMetrics(), cancellationToken);
+            var metrics = await CollectMetricsAsync();
             var status = DetermineHealthStatus(metrics);
-
-            _logger.LogDebug("System health check completed. Status: {Status}", status);
+            var description = GenerateDescription(status, metrics);
 
             return new HealthCheckResult(
                 ComponentName,
                 status,
-                status switch
-                {
-                    HealthStatus.Healthy => "System is operating normally",
-                    HealthStatus.Degraded => "System is experiencing high resource usage",
-                    HealthStatus.Unhealthy => "System is experiencing critical resource issues",
-                    _ => throw new ArgumentOutOfRangeException(nameof(status))
-                },
+                description,
                 metrics);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "System health check failed");
+            _logger.LogError(ex, "Error collecting system metrics");
             return new HealthCheckResult(
                 ComponentName,
                 HealthStatus.Unhealthy,
@@ -61,7 +77,11 @@ public class SystemHealthCheck : IHealthCheck
         }
     }
 
-    private Dictionary<string, object> CollectMetrics()
+    /// <summary>
+    /// Collects various system metrics asynchronously.
+    /// </summary>
+    /// <returns>A dictionary containing the collected metrics.</returns>
+    private async Task<Dictionary<string, object>> CollectMetricsAsync()
     {
         var metrics = new Dictionary<string, object>();
 
@@ -109,6 +129,11 @@ public class SystemHealthCheck : IHealthCheck
         return metrics;
     }
 
+    /// <summary>
+    /// Determines the overall health status based on the collected metrics.
+    /// </summary>
+    /// <param name="metrics">The collected system metrics.</param>
+    /// <returns>The determined health status (Healthy, Degraded, or Unhealthy).</returns>
     private HealthStatus DetermineHealthStatus(Dictionary<string, object> metrics)
     {
         // Check memory thresholds
@@ -130,5 +155,22 @@ public class SystemHealthCheck : IHealthCheck
             return HealthStatus.Degraded;
 
         return HealthStatus.Healthy;
+    }
+
+    /// <summary>
+    /// Generates a human-readable description of the system health status.
+    /// </summary>
+    /// <param name="status">The determined health status.</param>
+    /// <param name="metrics">The collected system metrics.</param>
+    /// <returns>A description string explaining the current system health.</returns>
+    private string GenerateDescription(HealthStatus status, Dictionary<string, object> metrics)
+    {
+        return status switch
+        {
+            HealthStatus.Healthy => "System is operating normally",
+            HealthStatus.Degraded => "System is experiencing high resource usage",
+            HealthStatus.Unhealthy => "System is experiencing critical resource issues",
+            _ => throw new ArgumentOutOfRangeException(nameof(status))
+        };
     }
 } 
