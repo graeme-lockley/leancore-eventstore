@@ -1,18 +1,22 @@
 using Azure.Storage.Blobs;
+using EventStore.Api.Configuration;
 using EventStore.Domain.Health;
 using EventStore.Infrastructure.Health;
+using Swashbuckle.AspNetCore.Filters;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.ConfigureSwagger();
 builder.Services.AddResponseCaching();
 
 // Configure Azure Storage
 var connectionString = builder.Configuration["AzureStorage:ConnectionString"];
 builder.Services.AddSingleton(new BlobServiceClient(connectionString));
+builder.Services.AddSingleton<IBlobServiceClient>(sp => 
+    new BlobServiceClientWrapper(sp.GetRequiredService<BlobServiceClient>()));
 
 // Configure health checks
 builder.Services.AddHealthCheckService(options =>
@@ -51,8 +55,7 @@ var app = builder.Build();
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerConfiguration();
 }
 
 app.UseResponseCaching();

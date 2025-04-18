@@ -1,23 +1,48 @@
+using Azure;
 using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using EventStore.Domain.Health;
 
 namespace EventStore.Infrastructure.Health;
 
+public interface IBlobServiceClient
+{
+    string AccountName { get; }
+    Task<Response<BlobServiceProperties>> GetPropertiesAsync(CancellationToken cancellationToken = default);
+}
+
+public class BlobServiceClientWrapper : IBlobServiceClient
+{
+    private readonly BlobServiceClient _client;
+
+    public BlobServiceClientWrapper(BlobServiceClient client)
+    {
+        _client = client ?? throw new ArgumentNullException(nameof(client));
+    }
+
+    public string AccountName => _client.AccountName;
+
+    public Task<Response<BlobServiceProperties>> GetPropertiesAsync(CancellationToken cancellationToken = default)
+    {
+        return _client.GetPropertiesAsync(cancellationToken);
+    }
+}
+
 /// <summary>
 /// Health check implementation for Azure Blob Storage
 /// </summary>
 public class BlobStorageHealthCheck : IHealthCheck
 {
-    private readonly BlobServiceClient _blobServiceClient;
+    private readonly IBlobServiceClient _blobServiceClient;
     private readonly ILogger<BlobStorageHealthCheck> _logger;
     private readonly BlobStorageHealthCheckOptions _options;
 
     public string ComponentName => "BlobStorage";
 
     public BlobStorageHealthCheck(
-        BlobServiceClient blobServiceClient,
+        IBlobServiceClient blobServiceClient,
         ILogger<BlobStorageHealthCheck> logger,
         IOptions<BlobStorageHealthCheckOptions> options)
     {

@@ -7,6 +7,8 @@ alwaysApply: false
 
   You are a senior .NET backend developer and an expert in C#, ASP.NET Core, and Entity Framework Core.
 
+  Use .NET 9.
+  
   ## Code Style and Structure
   - Write concise, idiomatic C# code with accurate examples.
   - Follow .NET and ASP.NET Core conventions and best practices.
@@ -57,8 +59,8 @@ alwaysApply: false
   - Implement background tasks using IHostedService or BackgroundService.
 
   ## Testing
-  - Write unit tests using xUnit, NUnit, or MSTest.
-  - Use Moq or NSubstitute for mocking dependencies.
+  - Write unit tests using xUnit.
+  - Use Moq for mocking dependencies.
   - Implement integration tests for API endpoints.
 
   ## Security

@@ -1,6 +1,8 @@
 using EventStore.Application.Health.Responses;
 using EventStore.Domain.Health;
+using EventStore.Api.Examples;
 using Microsoft.AspNetCore.Mvc;
+using Swashbuckle.AspNetCore.Filters;
 
 namespace EventStore.Api.Controllers;
 
@@ -10,11 +12,17 @@ namespace EventStore.Api.Controllers;
 [ApiController]
 [Route("api/v1/[controller]")]
 [Produces("application/json")]
+[Tags("Health")]
 public class HealthController : ControllerBase
 {
     private readonly IHealthCheckService _healthCheckService;
     private readonly ILogger<HealthController> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the HealthController
+    /// </summary>
+    /// <param name="healthCheckService">The health check service</param>
+    /// <param name="logger">The logger</param>
     public HealthController(
         IHealthCheckService healthCheckService,
         ILogger<HealthController> logger)
@@ -26,14 +34,23 @@ public class HealthController : ControllerBase
     /// <summary>
     /// Gets the health status of all components
     /// </summary>
+    /// <remarks>
+    /// This endpoint returns the health status of all registered components in the system.
+    /// The overall status will be:
+    /// - Healthy: All components are healthy
+    /// - Degraded: At least one component is degraded and no components are unhealthy
+    /// - Unhealthy: At least one component is unhealthy
+    /// </remarks>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Health status of all components</returns>
     /// <response code="200">System is healthy or degraded</response>
     /// <response code="503">System is unhealthy</response>
     [HttpGet]
-    [ProducesResponseType(typeof(SystemHealthResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(SystemHealthResponse), StatusCodes.Status503ServiceUnavailable)]
+    [ProducesResponseType(typeof(HealthCheckResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(HealthCheckResponse), StatusCodes.Status503ServiceUnavailable)]
     [ResponseCache(Duration = 10, VaryByQueryKeys = new[] { "*" })]
+    [SwaggerResponseExample(StatusCodes.Status200OK, typeof(HealthyResponseExample))]
+    [SwaggerResponseExample(StatusCodes.Status503ServiceUnavailable, typeof(UnhealthyResponseExample))]
     public async Task<IActionResult> GetHealth(CancellationToken cancellationToken)
     {
         try
@@ -56,8 +73,9 @@ public class HealthController : ControllerBase
         {
             _logger.LogError(ex, "Error processing health check request");
             
-            var errorResponse = new SystemHealthResponse(
+            var errorResponse = new HealthCheckResponse(
                 "Unhealthy",
+                DateTimeOffset.UtcNow,
                 new[]
                 {
                     new ComponentHealthResponse(
@@ -74,6 +92,13 @@ public class HealthController : ControllerBase
     /// <summary>
     /// Gets the health status of a specific component
     /// </summary>
+    /// <remarks>
+    /// This endpoint returns the health status of a specific component.
+    /// The status will be one of:
+    /// - Healthy: The component is functioning normally
+    /// - Degraded: The component is experiencing issues but is still operational
+    /// - Unhealthy: The component is not functioning correctly
+    /// </remarks>
     /// <param name="componentName">Name of the component to check</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Health status of the specified component</returns>
@@ -118,13 +143,14 @@ public class HealthController : ControllerBase
         }
     }
 
-    private static SystemHealthResponse CreateResponse(IReadOnlyCollection<HealthCheckResult> results)
+    private static HealthCheckResponse CreateResponse(IReadOnlyCollection<HealthCheckResult> results)
     {
         var status = DetermineOverallStatus(results);
         var components = results.Select(CreateComponentResponse).ToList();
 
-        return new SystemHealthResponse(
+        return new HealthCheckResponse(
             status.ToString(),
+            DateTimeOffset.UtcNow,
             components);
     }
 
@@ -140,11 +166,11 @@ public class HealthController : ControllerBase
     private static string DetermineOverallStatus(IReadOnlyCollection<HealthCheckResult> results)
     {
         if (results.Any(r => r.Status == HealthStatus.Unhealthy))
-            return "Unhealthy";
+            return HealthStatus.Unhealthy.ToString();
 
         if (results.Any(r => r.Status == HealthStatus.Degraded))
-            return "Degraded";
+            return HealthStatus.Degraded.ToString();
 
-        return "Healthy";
+        return HealthStatus.Healthy.ToString();
     }
 } 

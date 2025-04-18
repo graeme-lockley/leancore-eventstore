@@ -41,7 +41,7 @@ solution/
 ## Technical Choices
 
 ### Core Technologies
-- **.NET 8**: Latest LTS version for robust enterprise development
+- **.NET 9**: Latest LTS version for robust enterprise development
 - **C#**: Strong typing and modern language features
 - **ASP.NET Core**: Web API framework
 - **Azure Blob Storage**: Event store persistence
