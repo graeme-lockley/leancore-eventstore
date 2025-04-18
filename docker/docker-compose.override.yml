@@ -1,0 +1,34 @@
+version: '3.8'
+
+services:
+  eventstore-api:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80;https://+:443
+      - ASPNETCORE_Kestrel__Certificates__Default__Path=/app/certs/dev-cert.pfx
+      - ASPNETCORE_Kestrel__Certificates__Default__Password=dev-password
+    volumes:
+      - ~/.microsoft/usersecrets:/root/.microsoft/usersecrets:ro
+      - ~/.aspnet/https:/root/.aspnet/https:ro
+      - ../certs:/app/certs:ro
+    build:
+      args:
+        - BUILD_CONFIGURATION=Debug
+    develop:
+      watch:
+        - path: ../src/EventStore/EventStore.Api
+          action: rebuild
+        - path: ../src/EventStore/EventStore.Application
+          action: rebuild
+        - path: ../src/EventStore/EventStore.Domain
+          action: rebuild
+        - path: ../src/EventStore/EventStore.Infrastructure
+          action: rebuild
+
+  azurite:
+    volumes:
+      - azurite_data:/data
+    command: azurite --silent --location /data --debug /data/debug.log --loose
+
+volumes:
+  azurite_data: 

@@ -1,0 +1,7 @@
+FROM mcr.microsoft.com/azure-storage/azurite
+
+# Install curl using apk (Alpine package manager)
+RUN apk add --no-cache curl
+
+# Keep the default command from the base image
+CMD ["azurite", "--silent"] 

@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  eventstore-api:
+    build:
+      context: ../src/EventStore
+      dockerfile: Dockerfile
+    ports:
+      - "5050:80"
+      - "5051:443"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:80;https://+:443
+      - AzureStorage__ConnectionString=UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://azurite
+    depends_on:
+      azurite:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/api/v1/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    networks:
+      - eventstore-network
+
+  azurite:
+    build:
+      context: .
+      dockerfile: Dockerfile.azurite
+    ports:
+      - "10000:10000"  # Blob service
+      - "10001:10001"  # Queue service
+      - "10002:10002"  # Table service
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:10000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    volumes:
+      - azurite_data:/data
+    networks:
+      - eventstore-network
+
+volumes:
+  azurite_data:
+
+networks:
+  eventstore-network:
+    name: eventstore-network 
