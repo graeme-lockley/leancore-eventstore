@@ -20,7 +20,30 @@ public static class SwaggerConfiguration
             {
                 Title = "EventStore API",
                 Version = "v1",
-                Description = "A generic event sourcing framework API that provides interfaces and implementations for event sourcing.",
+                Description = """
+                    A generic event sourcing framework API that provides interfaces and implementations for event sourcing.
+
+                    ## Health Check Endpoints
+
+                    The API provides health check endpoints to monitor the system's health:
+
+                    ### GET /api/v1/health
+                    Returns the overall health status of the system and all its components.
+                    - 200 OK: System is healthy or degraded
+                    - 503 Service Unavailable: System is unhealthy
+
+                    ### GET /api/v1/health/{componentName}
+                    Returns the health status of a specific component.
+                    - 200 OK: Component is healthy or degraded
+                    - 404 Not Found: Component not found
+                    - 503 Service Unavailable: Component is unhealthy
+
+                    Available components:
+                    - BlobStorage: Azure Blob Storage health status
+                    - System: Overall system health including memory and thread pool metrics
+
+                    Response caching is enabled for 10 seconds on all health endpoints.
+                    """,
                 Contact = new OpenApiContact
                 {
                     Name = "EventStore Team",

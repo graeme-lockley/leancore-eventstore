@@ -98,6 +98,10 @@ public class HealthController : ControllerBase
     /// - Healthy: The component is functioning normally
     /// - Degraded: The component is experiencing issues but is still operational
     /// - Unhealthy: The component is not functioning correctly
+    /// 
+    /// Available components:
+    /// - BlobStorage: Azure Blob Storage health status
+    /// - System: Overall system health including memory and thread pool metrics
     /// </remarks>
     /// <param name="componentName">Name of the component to check</param>
     /// <param name="cancellationToken">Cancellation token</param>
@@ -110,6 +114,8 @@ public class HealthController : ControllerBase
     [ProducesResponseType(typeof(ComponentHealthResponse), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ComponentHealthResponse), StatusCodes.Status503ServiceUnavailable)]
     [ResponseCache(Duration = 10, VaryByQueryKeys = new[] { "*" })]
+    [SwaggerResponseExample(StatusCodes.Status200OK, typeof(HealthyComponentResponseExample))]
+    [SwaggerResponseExample(StatusCodes.Status503ServiceUnavailable, typeof(UnhealthyComponentResponseExample))]
     public async Task<IActionResult> GetComponentHealth(string componentName, CancellationToken cancellationToken)
     {
         try
