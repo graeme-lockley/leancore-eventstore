@@ -14,8 +14,6 @@ builder.Services.AddResponseCaching();
 var connectionString = builder.Configuration["AzureStorage:ConnectionString"];
 builder.Services.AddSingleton(new BlobServiceClient(connectionString));
 
-Console.WriteLine(connectionString);
-
 // Configure health checks
 builder.Services.AddHealthCheckService(options =>
 {
