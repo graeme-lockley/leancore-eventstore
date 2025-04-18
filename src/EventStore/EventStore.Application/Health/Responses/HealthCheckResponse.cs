@@ -3,12 +3,12 @@ using System.Text.Json.Serialization;
 namespace EventStore.Application.Health.Responses;
 
 /// <summary>
-/// Represents the overall health status of the system
+/// Response model for health check results
 /// </summary>
 public class HealthCheckResponse
 {
     /// <summary>
-    /// Gets the overall status of the system (healthy, degraded, unhealthy)
+    /// Gets the overall health status
     /// </summary>
     [JsonPropertyName("status")]
     public string Status { get; }
@@ -20,7 +20,7 @@ public class HealthCheckResponse
     public DateTimeOffset Timestamp { get; }
 
     /// <summary>
-    /// Gets detailed health information for each component
+    /// Gets the health status of individual components
     /// </summary>
     [JsonPropertyName("components")]
     public IReadOnlyCollection<ComponentHealthResponse> Components { get; }
@@ -30,8 +30,8 @@ public class HealthCheckResponse
         DateTimeOffset timestamp,
         IReadOnlyCollection<ComponentHealthResponse> components)
     {
-        Status = status;
+        Status = status ?? throw new ArgumentNullException(nameof(status));
         Timestamp = timestamp;
-        Components = components;
+        Components = components ?? throw new ArgumentNullException(nameof(components));
     }
 } 

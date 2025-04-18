@@ -3,51 +3,47 @@ using System.Text.Json.Serialization;
 namespace EventStore.Application.Health.Responses;
 
 /// <summary>
-/// Represents the health status of an individual component
+/// Represents the health status response for an individual component.
 /// </summary>
 public class ComponentHealthResponse
 {
     /// <summary>
-    /// Gets the name of the component
+    /// Gets the name of the component being checked.
     /// </summary>
     [JsonPropertyName("name")]
     public string Name { get; }
 
     /// <summary>
-    /// Gets the status of the component (healthy, degraded, unhealthy)
+    /// Gets the health status of the component.
     /// </summary>
     [JsonPropertyName("status")]
     public string Status { get; }
 
     /// <summary>
-    /// Gets the description or message about the component's health
-    /// </summary>
-    [JsonPropertyName("description")]
-    public string Description { get; }
-
-    /// <summary>
-    /// Gets the timestamp when the health check was performed
-    /// </summary>
-    [JsonPropertyName("lastChecked")]
-    public DateTimeOffset LastChecked { get; }
-
-    /// <summary>
-    /// Gets additional details about the component's health
+    /// Gets additional details about the component's health status, if any.
     /// </summary>
     [JsonPropertyName("details")]
-    public IDictionary<string, object> Details { get; }
+    public string? Details { get; }
 
-    public ComponentHealthResponse(
-        string name,
-        string status,
-        string description,
-        DateTimeOffset lastChecked,
-        IDictionary<string, object> details)
+    /// <summary>
+    /// Gets any error messages associated with the health check, if any.
+    /// </summary>
+    [JsonPropertyName("error")]
+    public string? Error { get; }
+
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ComponentHealthResponse"/> class.
+    /// </summary>
+    /// <param name="name">The name of the component.</param>
+    /// <param name="status">The health status of the component.</param>
+    /// <param name="details">Optional additional details about the component's health.</param>
+    /// <param name="error">Optional error message if the component is unhealthy.</param>
+    /// <exception cref="ArgumentNullException">Thrown when name or status is null.</exception>
+    public ComponentHealthResponse(string name, string status, string? details = null, string? error = null)
     {
-        Name = name;
-        Status = status;
-        Description = description;
-        LastChecked = lastChecked;
+        Name = name ?? throw new ArgumentNullException(nameof(name));
+        Status = status ?? throw new ArgumentNullException(nameof(status));
         Details = details;
+        Error = error;
     }
 } 

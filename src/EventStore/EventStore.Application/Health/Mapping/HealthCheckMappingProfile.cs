@@ -15,14 +15,12 @@ public class HealthCheckMappingProfile : Profile
             .ConstructUsing(src => new ComponentHealthResponse(
                 src.ComponentName,
                 src.Status.ToString(),
-                src.Description,
-                src.Timestamp,
-                src.Data));
+                src.Status != HealthStatus.Unhealthy ? src.Description : null,
+                src.Status == HealthStatus.Unhealthy ? src.Description : null));
 
-        CreateMap<IReadOnlyCollection<HealthCheckResult>, HealthCheckResponse>()
-            .ConstructUsing((src, context) => new HealthCheckResponse(
+        CreateMap<IReadOnlyCollection<HealthCheckResult>, SystemHealthResponse>()
+            .ConstructUsing((src, context) => new SystemHealthResponse(
                 DetermineOverallStatus(src),
-                src.Max(x => x.Timestamp),
                 src.Select(x => context.Mapper.Map<ComponentHealthResponse>(x)).ToList()));
     }
 

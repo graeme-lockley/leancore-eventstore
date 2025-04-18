@@ -1,7 +1,7 @@
 using Azure.Storage.Blobs;
-using EventStore.Domain.Health;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using EventStore.Domain.Health;
 
 namespace EventStore.Infrastructure.Health;
 
@@ -14,7 +14,7 @@ public class BlobStorageHealthCheck : IHealthCheck
     private readonly ILogger<BlobStorageHealthCheck> _logger;
     private readonly BlobStorageHealthCheckOptions _options;
 
-    public string ComponentName => "Azure Blob Storage";
+    public string ComponentName => "BlobStorage";
 
     public BlobStorageHealthCheck(
         BlobServiceClient blobServiceClient,
@@ -56,7 +56,7 @@ public class BlobStorageHealthCheck : IHealthCheck
         }
         catch (Exception ex) when (ex is TaskCanceledException || ex is OperationCanceledException)
         {
-            _logger.LogWarning("Blob storage health check timed out after {Timeout}ms", _options.TimeoutMs);
+            _logger.LogWarning("Blob storage health check timed out after {Timeout}ms: {Exception}", _options.TimeoutMs, ex.Message);
             
             return new HealthCheckResult(
                 ComponentName,
@@ -70,7 +70,7 @@ public class BlobStorageHealthCheck : IHealthCheck
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Blob storage health check failed");
+            _logger.LogError(ex, "Blob storage health check failed: {Exception}", ex.Message);
             
             return new HealthCheckResult(
                 ComponentName,

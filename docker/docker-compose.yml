@@ -4,42 +4,31 @@ services:
   eventstore-api:
     build:
       context: ../src/EventStore
-      dockerfile: Dockerfile
+      dockerfile: ../../docker/Dockerfile
     ports:
       - "5050:80"
-      - "5051:443"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
-      - ASPNETCORE_URLS=http://+:80;https://+:443
-      - AzureStorage__ConnectionString=UseDevelopmentStorage=true;DevelopmentStorageProxyUri=http://azurite
+      - ASPNETCORE_URLS=http://+:80
+      - AzureStorage__ConnectionString=DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;QueueEndpoint=http://azurite:10001/devstoreaccount1;TableEndpoint=http://azurite:10002/devstoreaccount1;
     depends_on:
-      azurite:
-        condition: service_healthy
+      - azurite
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost/api/v1/health"]
-      interval: 30s
-      timeout: 3s
+      interval: 10s
+      timeout: 5s
       retries: 3
-      start_period: 5s
+      start_period: 10s
     networks:
       - eventstore-network
 
   azurite:
-    build:
-      context: .
-      dockerfile: Dockerfile.azurite
+    container_name: eventstore-azurite-1
+    image: mcr.microsoft.com/azure-storage/azurite
     ports:
-      - "10000:10000"  # Blob service
-      - "10001:10001"  # Queue service
-      - "10002:10002"  # Table service
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:10000"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
-    volumes:
-      - azurite_data:/data
+      - "10000:10000"
+      - "10001:10001"
+      - "10002:10002"
     networks:
       - eventstore-network
 
