@@ -30,7 +30,7 @@ public class HealthControllerIntegrationTests : IClassFixture<WebApplicationFact
         {
             builder.ConfigureAppConfiguration((context, config) =>
             {
-                var inMemorySettings = new Dictionary<string, string>
+                var inMemorySettings = new Dictionary<string, string?>
                 {
                     {"AzureStorage:ConnectionString", "UseDevelopmentStorage=true"}
                 };

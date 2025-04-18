@@ -2,7 +2,9 @@ using Azure.Storage.Blobs;
 using EventStore.Api.Configuration;
 using EventStore.Domain.Health;
 using EventStore.Infrastructure.Health;
+using Microsoft.AspNetCore.RateLimiting;
 using Swashbuckle.AspNetCore.Filters;
+using System.Threading.RateLimiting;
 
 namespace EventStore.Api;
 
@@ -17,6 +19,39 @@ public class Program
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.ConfigureSwagger();
         builder.Services.AddResponseCaching();
+
+        // Add rate limiting
+        builder.Services.AddRateLimiter(options =>
+        {
+            // Global rate limit
+            options.AddFixedWindowLimiter("GlobalRateLimit", options =>
+            {
+                options.PermitLimit = 100;
+                options.Window = TimeSpan.FromMinutes(1);
+                options.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+                options.QueueLimit = 2;
+            });
+
+            // Health check specific rate limit
+            options.AddFixedWindowLimiter("HealthCheck", options =>
+            {
+                options.PermitLimit = 30;
+                options.Window = TimeSpan.FromSeconds(10);
+                options.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+                options.QueueLimit = 2;
+            });
+        });
+
+        // Configure CORS
+        builder.Services.AddCors(options =>
+        {
+            options.AddPolicy("HealthCheckPolicy", policy =>
+            {
+                policy.WithOrigins("*")
+                    .WithMethods("GET")
+                    .WithHeaders("Content-Type");
+            });
+        });
 
         // Configure Azure Storage
         var connectionString = builder.Configuration["AzureStorage:ConnectionString"] ?? "UseDevelopmentStorage=true";
@@ -65,8 +100,11 @@ public class Program
         }
 
         app.UseResponseCaching();
+        app.UseRateLimiter();
+        app.UseCors("HealthCheckPolicy");
         app.UseAuthorization();
-        app.MapControllers();
+        app.MapControllers()
+            .RequireRateLimiting("GlobalRateLimit");
 
         // Register health checks with the service
         var healthCheckService = app.Services.GetRequiredService<IHealthCheckService>();

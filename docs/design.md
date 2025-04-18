@@ -166,6 +166,7 @@ The response will include the created topic's details and a 201 Created status c
 }
 ```
 
+
 ### Data plane
 
 The data plane is responsible for accessing topics either writing events to or reading events from.  It is a RESTful API that is designed to be used by the Core Banking application.

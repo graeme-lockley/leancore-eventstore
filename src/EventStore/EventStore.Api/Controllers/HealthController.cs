@@ -3,6 +3,7 @@ using EventStore.Domain.Health;
 using EventStore.Api.Examples;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Filters;
+using System.Diagnostics;
 
 namespace EventStore.Api.Controllers;
 
@@ -53,17 +54,25 @@ public class HealthController : ControllerBase
     [SwaggerResponseExample(StatusCodes.Status503ServiceUnavailable, typeof(UnhealthyResponseExample))]
     public async Task<IActionResult> GetHealth(CancellationToken cancellationToken)
     {
+        var requestId = Activity.Current?.Id ?? Guid.NewGuid().ToString();
+        using var scope = _logger.BeginScope(new Dictionary<string, object>
+        {
+            ["RequestId"] = requestId,
+            ["Operation"] = "GetHealth"
+        });
+
         try
         {
-            _logger.LogDebug("Processing health check request");
+            _logger.LogDebug("Processing health check request. RequestId: {RequestId}", requestId);
             
             var results = await _healthCheckService.CheckAllAsync(cancellationToken);
             var response = CreateResponse(results);
             
             _logger.LogInformation(
-                "Health check completed. Status: {Status}, Components: {ComponentCount}",
+                "Health check completed. Status: {Status}, Components: {ComponentCount}, RequestId: {RequestId}",
                 response.Status,
-                response.Components.Count);
+                response.Components.Count,
+                requestId);
 
             return response.Status == "Unhealthy" 
                 ? StatusCode(StatusCodes.Status503ServiceUnavailable, response)
@@ -71,7 +80,7 @@ public class HealthController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing health check request");
+            _logger.LogError(ex, "Error processing health check request. RequestId: {RequestId}", requestId);
             
             var errorResponse = new HealthCheckResponse(
                 "Unhealthy",
@@ -118,11 +127,33 @@ public class HealthController : ControllerBase
     [SwaggerResponseExample(StatusCodes.Status503ServiceUnavailable, typeof(UnhealthyComponentResponseExample))]
     public async Task<IActionResult> GetComponentHealth(string componentName, CancellationToken cancellationToken)
     {
+        if (string.IsNullOrWhiteSpace(componentName))
+        {
+            _logger.LogWarning("Component name is null or empty");
+            return BadRequest(new ComponentHealthResponse(
+                "Unknown",
+                "Unhealthy",
+                null,
+                "Component name cannot be null or empty"));
+        }
+
         try
         {
             _logger.LogDebug("Processing health check request for component: {ComponentName}", componentName);
             
             var result = await _healthCheckService.CheckComponentAsync(componentName, cancellationToken);
+            
+            // Handle component not found
+            if (result.Status == HealthStatus.Unhealthy && 
+                result.Description?.Contains("No health check registered") == true)
+            {
+                return NotFound(new ComponentHealthResponse(
+                    componentName,
+                    "Unhealthy",
+                    null,
+                    $"Component '{componentName}' not found"));
+            }
+
             var response = CreateComponentResponse(result);
 
             _logger.LogInformation(
@@ -134,6 +165,15 @@ public class HealthController : ControllerBase
                 return StatusCode(StatusCodes.Status503ServiceUnavailable, response);
 
             return Ok(response);
+        }
+        catch (OperationCanceledException)
+        {
+            _logger.LogWarning("Health check cancelled for component: {ComponentName}", componentName);
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new ComponentHealthResponse(
+                componentName,
+                "Unhealthy",
+                null,
+                "Health check operation cancelled"));
         }
         catch (Exception ex)
         {
@@ -151,8 +191,14 @@ public class HealthController : ControllerBase
 
     private static HealthCheckResponse CreateResponse(IReadOnlyCollection<HealthCheckResult> results)
     {
+        if (results == null)
+            throw new ArgumentNullException(nameof(results));
+
         var status = DetermineOverallStatus(results);
         var components = results.Select(CreateComponentResponse).ToList();
+
+        // Validate response format
+        ValidateResponse(status, components);
 
         return new HealthCheckResponse(
             status.ToString(),
@@ -162,11 +208,56 @@ public class HealthController : ControllerBase
 
     private static ComponentHealthResponse CreateComponentResponse(HealthCheckResult result)
     {
+        if (result == null)
+            throw new ArgumentNullException(nameof(result));
+
+        if (string.IsNullOrWhiteSpace(result.ComponentName))
+            throw new ArgumentException("Component name cannot be null or empty", nameof(result));
+
+        // Ensure status is a valid value
+        if (!Enum.IsDefined(typeof(HealthStatus), result.Status))
+            throw new ArgumentException($"Invalid health status: {result.Status}", nameof(result));
+
         return new ComponentHealthResponse(
             result.ComponentName,
             result.Status.ToString(),
             result.Status != HealthStatus.Unhealthy ? result.Description : null,
             result.Status == HealthStatus.Unhealthy ? result.Description : null);
+    }
+
+    private static void ValidateResponse(string status, IReadOnlyCollection<ComponentHealthResponse> components)
+    {
+        if (!Enum.TryParse<HealthStatus>(status, out var healthStatus))
+            throw new InvalidOperationException($"Invalid health status: {status}");
+
+        // Validate overall status matches component statuses
+        var hasUnhealthy = components.Any(c => c.Status == HealthStatus.Unhealthy.ToString());
+        var hasDegraded = components.Any(c => c.Status == HealthStatus.Degraded.ToString());
+
+        if (healthStatus == HealthStatus.Unhealthy && !hasUnhealthy)
+            throw new InvalidOperationException("Overall status is Unhealthy but no components are unhealthy");
+
+        if (healthStatus == HealthStatus.Degraded && !hasDegraded && !hasUnhealthy)
+            throw new InvalidOperationException("Overall status is Degraded but no components are degraded");
+
+        if (healthStatus == HealthStatus.Healthy && (hasDegraded || hasUnhealthy))
+            throw new InvalidOperationException("Overall status is Healthy but components are degraded or unhealthy");
+
+        // Validate component response format
+        foreach (var component in components)
+        {
+            if (string.IsNullOrWhiteSpace(component.Name))
+                throw new InvalidOperationException("Component name cannot be null or empty");
+
+            if (!Enum.TryParse<HealthStatus>(component.Status, out _))
+                throw new InvalidOperationException($"Invalid component status: {component.Status}");
+
+            if (component.Status == HealthStatus.Unhealthy.ToString() && string.IsNullOrWhiteSpace(component.Error))
+                throw new InvalidOperationException("Unhealthy component must have an error message");
+
+            if (component.Status != HealthStatus.Unhealthy.ToString() && !string.IsNullOrWhiteSpace(component.Error))
+                throw new InvalidOperationException("Non-unhealthy component should not have an error message");
+        }
     }
 
     private static string DetermineOverallStatus(IReadOnlyCollection<HealthCheckResult> results)
