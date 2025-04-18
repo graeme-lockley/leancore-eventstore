@@ -16,7 +16,8 @@ public class HealthCheckMappingProfile : Profile
                 src.ComponentName,
                 src.Status.ToString(),
                 src.Status != HealthStatus.Unhealthy ? src.Description : null,
-                src.Status == HealthStatus.Unhealthy ? src.Description : null));
+                src.Status == HealthStatus.Unhealthy ? src.Description : null,
+                src.Data));
 
         CreateMap<IReadOnlyCollection<HealthCheckResult>, SystemHealthResponse>()
             .ConstructUsing((src, context) => new SystemHealthResponse(
@@ -27,11 +28,11 @@ public class HealthCheckMappingProfile : Profile
     private static string DetermineOverallStatus(IReadOnlyCollection<HealthCheckResult> results)
     {
         if (results.Any(r => r.Status == HealthStatus.Unhealthy))
-            return HealthStatus.Unhealthy.ToString();
+            return nameof(HealthStatus.Unhealthy);
 
         if (results.Any(r => r.Status == HealthStatus.Degraded))
-            return HealthStatus.Degraded.ToString();
+            return nameof(HealthStatus.Degraded);
 
-        return HealthStatus.Healthy.ToString();
+        return nameof(HealthStatus.Healthy);
     }
 } 

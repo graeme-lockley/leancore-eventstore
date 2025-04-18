@@ -1,29 +1,27 @@
+using System;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using EventStore.Domain.Health;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace EventStore.Infrastructure.Health;
 
 /// <summary>
-/// Implements a health check for monitoring system metrics including memory usage, thread pool status, and CPU utilization.
-/// This health check provides detailed information about the current state of the application process and system resources.
+/// Health check implementation for system metrics
 /// </summary>
-public class SystemHealthCheck : IHealthCheck
+public class SystemHealthCheck : EventStore.Domain.Health.IHealthCheck,
+    Microsoft.Extensions.Diagnostics.HealthChecks.IHealthCheck
 {
     private readonly ILogger<SystemHealthCheck> _logger;
     private readonly SystemHealthCheckOptions _options;
     private readonly Process _currentProcess;
 
-    /// <inheritdoc/>
     public string ComponentName => "System";
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="SystemHealthCheck"/> class.
-    /// </summary>
-    /// <param name="logger">The logger for recording health check activities.</param>
-    /// <param name="options">Configuration options for system health thresholds.</param>
-    /// <exception cref="ArgumentNullException">Thrown when logger or options is null.</exception>
     public SystemHealthCheck(
         ILogger<SystemHealthCheck> logger,
         IOptions<SystemHealthCheckOptions> options)
@@ -33,144 +31,127 @@ public class SystemHealthCheck : IHealthCheck
         _currentProcess = Process.GetCurrentProcess();
     }
 
-    /// <summary>
-    /// Performs a health check by gathering and analyzing system metrics.
-    /// </summary>
-    /// <param name="cancellationToken">A token to cancel the operation.</param>
-    /// <returns>
-    /// A <see cref="HealthCheckResult"/> containing:
-    /// - Status: Based on memory usage and thread pool utilization thresholds
-    /// - Description: Summary of the system's health
-    /// - Data: Detailed metrics including:
-    ///   * Memory usage (working set, private memory, managed memory)
-    ///   * GC collection counts
-    ///   * Thread pool statistics
-    ///   * CPU utilization
-    ///   * Process information (handles, threads, uptime)
-    /// </returns>
-    public async Task<HealthCheckResult> CheckHealthAsync(CancellationToken cancellationToken = default)
+    public async Task<EventStore.Domain.Health.HealthCheckResult> CheckHealthAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var result = await CheckHealthInternalAsync(cancellationToken);
+        return new EventStore.Domain.Health.HealthCheckResult(
+            ComponentName,
+            result.Status switch
+            {
+                Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy =>
+                    Domain.Health.HealthStatus.Healthy,
+                Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded => Domain.Health.HealthStatus
+                    .Degraded,
+                _ => Domain.Health.HealthStatus.Unhealthy
+            },
+            result.Description ?? string.Empty,
+            result.Data.ToDictionary(x => x.Key, x => x.Value));
+    }
+
+    public Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult> CheckHealthAsync(
+        HealthCheckContext context,
+        CancellationToken cancellationToken = default)
+    {
+        return CheckHealthInternalAsync(cancellationToken);
+    }
+
+    private async Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult> CheckHealthInternalAsync(
+        CancellationToken cancellationToken = default)
     {
         try
         {
-            var metrics = await CollectMetricsAsync();
-            var status = DetermineHealthStatus(metrics);
-            var description = GenerateDescription(status, metrics);
+            var data = new Dictionary<string, object>();
 
-            return new HealthCheckResult(
-                ComponentName,
+            var memoryInfo = GC.GetGCMemoryInfo();
+            var totalMemory = memoryInfo.TotalAvailableMemoryBytes;
+            var usedMemory = GC.GetTotalMemory(false);
+            var memoryUsagePercentage = (double)usedMemory / totalMemory * 100;
+
+            ThreadPool.GetAvailableThreads(out int workerThreads, out int completionPortThreads);
+            ThreadPool.GetMaxThreads(out int maxWorkerThreads, out int maxCompletionPortThreads);
+
+            var threadPoolUsagePercentage = (1 - (double)workerThreads / maxWorkerThreads) * 100;
+
+            if (_options.IncludeDetailedInfo)
+            {
+                data.Add("memoryUsagePercentage", Math.Round(memoryUsagePercentage, 2));
+                data.Add("threadPoolUsagePercentage", Math.Round(threadPoolUsagePercentage, 2));
+            }
+
+            var status = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy;
+            var description = "System resources are within acceptable limits";
+
+            if (usedMemory > _options.MemoryThresholds.UnhealthyBytes)
+            {
+                status = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy;
+                description = $"Memory usage ({Math.Round(memoryUsagePercentage, 2)}%) exceeds unhealthy threshold";
+            }
+            else if (usedMemory > _options.MemoryThresholds.DegradedBytes)
+            {
+                status = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded;
+                description = $"Memory usage ({Math.Round(memoryUsagePercentage, 2)}%) exceeds degraded threshold";
+            }
+
+            if (threadPoolUsagePercentage > _options.ThreadPoolThresholds.UnhealthyUtilization * 100)
+            {
+                status = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy;
+                description =
+                    $"Thread pool usage ({Math.Round(threadPoolUsagePercentage, 2)}%) exceeds unhealthy threshold";
+            }
+            else if (threadPoolUsagePercentage > _options.ThreadPoolThresholds.DegradedUtilization * 100)
+            {
+                status = Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded;
+                description =
+                    $"Thread pool usage ({Math.Round(threadPoolUsagePercentage, 2)}%) exceeds degraded threshold";
+            }
+
+            try
+            {
+                _logger.LogInformation("System health check completed. Status: {Status}", status);
+            }
+            catch (Exception ex)
+            {
+                return new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult(
+                    Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
+                    "Error checking system health",
+                    ex,
+                    _options.IncludeDetailedInfo
+                        ? new Dictionary<string, object>
+                        {
+                            { "Error", ex.Message }
+                        }
+                        : null);
+            }
+
+            
+            return new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult(
                 status,
                 description,
-                metrics);
+                null,
+                data);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error collecting system metrics");
-            return new HealthCheckResult(
-                ComponentName,
-                HealthStatus.Unhealthy,
-                "Failed to collect system metrics",
-                new Dictionary<string, object>
-                {
-                    { "error", ex.Message },
-                    { "errorType", ex.GetType().Name }
-                });
+            try
+            {
+                _logger.LogError(ex, "Error checking system health");
+            }
+            catch
+            {
+                // Ignore logging errors
+            }
+
+            return new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult(
+                Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
+                "Error checking system health",
+                ex,
+                _options.IncludeDetailedInfo
+                    ? new Dictionary<string, object>
+                    {
+                        { "Error", ex.Message }
+                    }
+                    : null);
         }
     }
-
-    /// <summary>
-    /// Collects various system metrics asynchronously.
-    /// </summary>
-    /// <returns>A dictionary containing the collected metrics.</returns>
-    private async Task<Dictionary<string, object>> CollectMetricsAsync()
-    {
-        var metrics = new Dictionary<string, object>();
-
-        // Memory metrics
-        var workingSet = _currentProcess.WorkingSet64;
-        var privateMemory = _currentProcess.PrivateMemorySize64;
-        var managedMemory = GC.GetTotalMemory(false);
-
-        metrics.Add("workingSetBytes", workingSet);
-        metrics.Add("privateMemoryBytes", privateMemory);
-        metrics.Add("managedMemoryBytes", managedMemory);
-        metrics.Add("gcCollectionCount", new Dictionary<string, int>
-        {
-            { "gen0", GC.CollectionCount(0) },
-            { "gen1", GC.CollectionCount(1) },
-            { "gen2", GC.CollectionCount(2) }
-        });
-
-        // Thread pool metrics
-        ThreadPool.GetAvailableThreads(out int workerThreads, out int completionPortThreads);
-        ThreadPool.GetMaxThreads(out int maxWorkerThreads, out int maxCompletionPortThreads);
-
-        metrics.Add("threadPool", new Dictionary<string, object>
-        {
-            { "availableWorkerThreads", workerThreads },
-            { "availableIoThreads", completionPortThreads },
-            { "maxWorkerThreads", maxWorkerThreads },
-            { "maxIoThreads", maxCompletionPortThreads }
-        });
-
-        // CPU metrics
-        metrics.Add("cpuTime", new Dictionary<string, TimeSpan>
-        {
-            { "total", _currentProcess.TotalProcessorTime },
-            { "user", _currentProcess.UserProcessorTime },
-            { "privileged", _currentProcess.PrivilegedProcessorTime }
-        });
-
-        // Process metrics
-        metrics.Add("handles", _currentProcess.HandleCount);
-        metrics.Add("threads", _currentProcess.Threads.Count);
-        metrics.Add("startTime", _currentProcess.StartTime.ToUniversalTime());
-        metrics.Add("uptime", DateTime.UtcNow - _currentProcess.StartTime.ToUniversalTime());
-
-        return metrics;
-    }
-
-    /// <summary>
-    /// Determines the overall health status based on the collected metrics.
-    /// </summary>
-    /// <param name="metrics">The collected system metrics.</param>
-    /// <returns>The determined health status (Healthy, Degraded, or Unhealthy).</returns>
-    private HealthStatus DetermineHealthStatus(Dictionary<string, object> metrics)
-    {
-        // Check memory thresholds
-        var workingSetBytes = (long)metrics["workingSetBytes"];
-        if (workingSetBytes > _options.MemoryThresholds.UnhealthyBytes)
-            return HealthStatus.Unhealthy;
-        if (workingSetBytes > _options.MemoryThresholds.DegradedBytes)
-            return HealthStatus.Degraded;
-
-        // Check thread pool utilization
-        var threadPool = (Dictionary<string, object>)metrics["threadPool"];
-        var availableWorkerThreads = (int)threadPool["availableWorkerThreads"];
-        var maxWorkerThreads = (int)threadPool["maxWorkerThreads"];
-        var threadPoolUtilization = 1 - ((double)availableWorkerThreads / maxWorkerThreads);
-
-        if (threadPoolUtilization > _options.ThreadPoolThresholds.UnhealthyUtilization)
-            return HealthStatus.Unhealthy;
-        if (threadPoolUtilization > _options.ThreadPoolThresholds.DegradedUtilization)
-            return HealthStatus.Degraded;
-
-        return HealthStatus.Healthy;
-    }
-
-    /// <summary>
-    /// Generates a human-readable description of the system health status.
-    /// </summary>
-    /// <param name="status">The determined health status.</param>
-    /// <param name="metrics">The collected system metrics.</param>
-    /// <returns>A description string explaining the current system health.</returns>
-    private string GenerateDescription(HealthStatus status, Dictionary<string, object> metrics)
-    {
-        return status switch
-        {
-            HealthStatus.Healthy => "System is operating normally",
-            HealthStatus.Degraded => "System is experiencing high resource usage",
-            HealthStatus.Unhealthy => "System is experiencing critical resource issues",
-            _ => throw new ArgumentOutOfRangeException(nameof(status))
-        };
-    }
-} 
+}

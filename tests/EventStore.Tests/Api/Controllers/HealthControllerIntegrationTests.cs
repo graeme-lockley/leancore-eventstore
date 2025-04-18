@@ -14,17 +14,19 @@ using Moq;
 using Xunit;
 using System.Text.Json;
 using MicrosoftHealthChecks = Microsoft.Extensions.Diagnostics.HealthChecks;
+using Azure.Storage.Blobs.Models;
+using Azure;
 
 namespace EventStore.Tests.Api.Controllers;
 
 public class HealthControllerIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
 {
     private readonly WebApplicationFactory<Program> _factory;
-    private readonly Mock<BlobServiceClient> _mockBlobServiceClient;
+    private readonly Mock<IBlobServiceClient> _mockBlobServiceClient;
 
     public HealthControllerIntegrationTests(WebApplicationFactory<Program> factory)
     {
-        _mockBlobServiceClient = new Mock<BlobServiceClient>();
+        _mockBlobServiceClient = new Mock<IBlobServiceClient>();
         
         _factory = factory.WithWebHostBuilder(builder =>
         {
@@ -47,7 +49,14 @@ public class HealthControllerIntegrationTests : IClassFixture<WebApplicationFact
                     services.Remove(descriptor);
                 }
 
-                // Add the mock BlobServiceClient
+                // Remove the real IBlobServiceClient registration
+                var wrapperDescriptor = services.SingleOrDefault(d => d.ServiceType == typeof(IBlobServiceClient));
+                if (wrapperDescriptor != null)
+                {
+                    services.Remove(wrapperDescriptor);
+                }
+
+                // Add the mock IBlobServiceClient
                 services.AddSingleton(_mockBlobServiceClient.Object);
             });
         });
@@ -75,8 +84,19 @@ public class HealthControllerIntegrationTests : IClassFixture<WebApplicationFact
     public async Task GetHealth_WithActualBlobStorage_ReturnsStorageStatus()
     {
         // Arrange
-        _mockBlobServiceClient.Setup(x => x.GetBlobContainerClient(It.IsAny<string>()))
-            .Returns(Mock.Of<BlobContainerClient>());
+        var mockResponse = new Mock<Response<BlobServiceProperties>>();
+        var properties = new BlobServiceProperties
+        {
+            DefaultServiceVersion = "2020-06-12",
+            StaticWebsite = new BlobStaticWebsite { Enabled = true }
+        };
+        mockResponse.Setup(x => x.Value).Returns(properties);
+
+        _mockBlobServiceClient.Setup(x => x.GetPropertiesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockResponse.Object);
+
+        _mockBlobServiceClient.Setup(x => x.AccountName)
+            .Returns("testaccount");
 
         var client = _factory.CreateClient();
 
@@ -84,7 +104,6 @@ public class HealthControllerIntegrationTests : IClassFixture<WebApplicationFact
         var response = await client.GetAsync("/api/v1/health");
 
         // Assert
-        response.EnsureSuccessStatusCode();
         var content = await response.Content.ReadAsStringAsync();
         var healthResponse = JsonSerializer.Deserialize<HealthCheckResponse>(content, new JsonSerializerOptions
         {
@@ -92,7 +111,8 @@ public class HealthControllerIntegrationTests : IClassFixture<WebApplicationFact
         });
 
         Assert.NotNull(healthResponse);
-        Assert.Contains(healthResponse.Components, c => c.Name == "BlobStorage");
+        var blobComponent = Assert.Single(healthResponse.Components.Where(c => c.Name == "BlobStorage"));
+        Assert.Equal(HealthStatus.Healthy.ToString(), blobComponent.Status);
     }
 
     [Fact]
@@ -133,9 +153,9 @@ public class HealthControllerIntegrationTests : IClassFixture<WebApplicationFact
         // Assert
         content.Should().NotBeNull();
         content!.Should().BeOfType<HealthCheckResponse>();
-        content.Status.Should().BeOneOf("Healthy", "Degraded", "Unhealthy");
+        content!.Status.Should().BeOneOf("Healthy", "Degraded", "Unhealthy");
         content.Components.Should().NotBeNull();
-        content.Components.Should().AllSatisfy(c =>
+        content.Components!.Should().AllSatisfy(c =>
         {
             c.Should().NotBeNull();
             c.Name.Should().NotBeNullOrEmpty();

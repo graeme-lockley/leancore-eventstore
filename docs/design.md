@@ -91,7 +91,7 @@ The health check endpoint returns a 200 OK response if the event store is health
 
 #### Creating a topic
 
-The control plane has an endpoint for creating a topic.  The endpoint is defined as follows:
+The control plane has a command endpoint for creating a topic.  The endpoint is defined as follows:
 
 ```
 POST /api/v1/topics
@@ -165,6 +165,15 @@ The response will include the created topic's details and a 201 Created status c
     }
 }
 ```
+
+The design of this endpoint is to be built using CQRS.  The list of topics is an in-memory read-model that is used to represents the topics in the event store.  This structure is updated through an event handler that is triggered from the data plane whenever a topic create command is executed.  The management events are placed into their own topic called "_configuration" in the event store.
+
+The read model is updated through the
+
+```
+POST /api/v1/event-handler
+```
+
 
 
 ### Data plane

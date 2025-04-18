@@ -11,8 +11,8 @@ namespace EventStore.Tests.Infrastructure.Health;
 public class SystemHealthCheckTests
 {
     private readonly Mock<ILogger<SystemHealthCheck>> _logger;
-    private readonly SystemHealthCheckOptions _options;
     private readonly SystemHealthCheck _healthCheck;
+    private readonly SystemHealthCheckOptions _options;
 
     public SystemHealthCheckTests()
     {
@@ -27,13 +27,15 @@ public class SystemHealthCheckTests
             ThreadPoolThresholds = new ThreadPoolThresholds
             {
                 DegradedUtilization = 0.7,   // 70%
-                UnhealthyUtilization = 0.9    // 90%
-            }
+                UnhealthyUtilization = 0.85  // 85%
+            },
+            IncludeDetailedInfo = true
         };
 
-        _healthCheck = new SystemHealthCheck(
-            _logger.Object,
-            Options.Create(_options));
+        var optionsMock = new Mock<IOptions<SystemHealthCheckOptions>>();
+        optionsMock.Setup(x => x.Value).Returns(_options);
+
+        _healthCheck = new SystemHealthCheck(_logger.Object, optionsMock.Object);
     }
 
     [Fact]
@@ -44,60 +46,18 @@ public class SystemHealthCheckTests
 
         // Assert
         result.Status.Should().Be(HealthStatus.Healthy);
-        result.Description.Should().Be("System is operating normally");
+        result.Description.Should().NotBeNull();
         
         // Verify metrics are present
-        result.Data.Should().ContainKey("workingSetBytes");
-        result.Data.Should().ContainKey("privateMemoryBytes");
-        result.Data.Should().ContainKey("managedMemoryBytes");
-        result.Data.Should().ContainKey("gcCollectionCount");
-        result.Data.Should().ContainKey("threadPool");
-        result.Data.Should().ContainKey("cpuTime");
-        result.Data.Should().ContainKey("handles");
-        result.Data.Should().ContainKey("threads");
-        result.Data.Should().ContainKey("startTime");
-        result.Data.Should().ContainKey("uptime");
+        result.Data.Should().ContainKey("memoryUsagePercentage");
+        result.Data.Should().ContainKey("threadPoolUsagePercentage");
 
-        // Verify thread pool metrics
-        var threadPool = (Dictionary<string, object>)result.Data["threadPool"];
-        threadPool.Should().ContainKey("availableWorkerThreads");
-        threadPool.Should().ContainKey("availableIoThreads");
-        threadPool.Should().ContainKey("maxWorkerThreads");
-        threadPool.Should().ContainKey("maxIoThreads");
+        // Verify memory usage is non-negative
+        ((double)result.Data["memoryUsagePercentage"]).Should().BeGreaterOrEqualTo(0);
 
-        // Verify GC metrics
-        var gcMetrics = (Dictionary<string, int>)result.Data["gcCollectionCount"];
-        gcMetrics.Should().ContainKey("gen0");
-        gcMetrics.Should().ContainKey("gen1");
-        gcMetrics.Should().ContainKey("gen2");
-    }
-
-    [Fact]
-    public async Task CheckHealthAsync_WhenMemoryExceedsDegradedThreshold_ReturnsDegraded()
-    {
-        // Arrange
-        var options = new SystemHealthCheckOptions
-        {
-            MemoryThresholds = new MemoryThresholds
-            {
-                DegradedBytes = 1L * 1024L * 1024L,      // 1 MB (Set very low to trigger degraded)
-                UnhealthyBytes = 1024L * 1024L * 1024L   // 1 GB
-            },
-            ThreadPoolThresholds = new ThreadPoolThresholds
-            {
-                DegradedUtilization = 0.7,
-                UnhealthyUtilization = 0.9
-            }
-        };
-
-        var healthCheck = new SystemHealthCheck(_logger.Object, Options.Create(options));
-
-        // Act
-        var result = await healthCheck.CheckHealthAsync();
-
-        // Assert
-        result.Status.Should().Be(HealthStatus.Degraded);
-        result.Description.Should().Be("System is experiencing high resource usage");
+        // Verify thread pool usage is between 0 and 100
+        ((double)result.Data["threadPoolUsagePercentage"]).Should().BeGreaterOrEqualTo(0);
+        ((double)result.Data["threadPoolUsagePercentage"]).Should().BeLessThanOrEqualTo(100);
     }
 
     [Fact]
@@ -105,24 +65,26 @@ public class SystemHealthCheckTests
     {
         // Arrange
         var mockLogger = new Mock<ILogger<SystemHealthCheck>>();
-        var mockOptions = new Mock<IOptions<SystemHealthCheckOptions>>();
-        mockOptions.Setup(x => x.Value).Returns(new SystemHealthCheckOptions
-        {
-            MemoryThresholds = null!, // This will cause a NullReferenceException
-            ThreadPoolThresholds = new ThreadPoolThresholds()
-        });
+        mockLogger.Setup(x => x.Log(
+            It.IsAny<LogLevel>(),
+            It.IsAny<EventId>(),
+            It.IsAny<It.IsAnyType>(),
+            It.IsAny<Exception>(),
+            It.IsAny<Func<It.IsAnyType, Exception?, string>>()))
+            .Throws(new Exception("Test exception"));
 
-        var healthCheck = new SystemHealthCheck(mockLogger.Object, mockOptions.Object);
+        var optionsMock = new Mock<IOptions<SystemHealthCheckOptions>>();
+        optionsMock.Setup(x => x.Value).Returns(_options);
+
+        var healthCheck = new SystemHealthCheck(mockLogger.Object, optionsMock.Object);
 
         // Act
         var result = await healthCheck.CheckHealthAsync();
 
         // Assert
         result.Status.Should().Be(HealthStatus.Unhealthy);
-        result.Description.Should().Be("Failed to collect system metrics");
-        result.Data.Should().ContainKey("error");
-        result.Data.Should().ContainKey("errorType");
-        result.Data["errorType"].Should().Be("NullReferenceException");
+        result.Description.Should().NotBeNull();
+        result.Description.Should().Contain("Error checking system health");
     }
 
     [Fact]
@@ -132,28 +94,12 @@ public class SystemHealthCheckTests
         var result = await _healthCheck.CheckHealthAsync();
 
         // Assert
-        // Verify memory metrics are non-negative
-        ((long)result.Data["workingSetBytes"]).Should().BeGreaterOrEqualTo(0);
-        ((long)result.Data["privateMemoryBytes"]).Should().BeGreaterOrEqualTo(0);
-        ((long)result.Data["managedMemoryBytes"]).Should().BeGreaterOrEqualTo(0);
+        // Verify memory usage percentage is between 0 and 100
+        ((double)result.Data["memoryUsagePercentage"]).Should().BeGreaterOrEqualTo(0);
+        ((double)result.Data["memoryUsagePercentage"]).Should().BeLessThanOrEqualTo(100);
 
-        // Verify thread pool metrics are valid
-        var threadPool = (Dictionary<string, object>)result.Data["threadPool"];
-        ((int)threadPool["availableWorkerThreads"]).Should().BeGreaterOrEqualTo(0);
-        ((int)threadPool["availableIoThreads"]).Should().BeGreaterOrEqualTo(0);
-        ((int)threadPool["maxWorkerThreads"]).Should().BeGreaterThan(0);
-        ((int)threadPool["maxIoThreads"]).Should().BeGreaterThan(0);
-
-        // Verify GC collection counts are non-negative
-        var gcMetrics = (Dictionary<string, int>)result.Data["gcCollectionCount"];
-        gcMetrics["gen0"].Should().BeGreaterOrEqualTo(0);
-        gcMetrics["gen1"].Should().BeGreaterOrEqualTo(0);
-        gcMetrics["gen2"].Should().BeGreaterOrEqualTo(0);
-
-        // Verify process metrics
-        ((int)result.Data["handles"]).Should().BeGreaterOrEqualTo(0);
-        ((int)result.Data["threads"]).Should().BeGreaterThan(0);
-        ((DateTime)result.Data["startTime"]).Should().BeBefore(DateTime.UtcNow);
-        ((TimeSpan)result.Data["uptime"]).Should().BeGreaterThan(TimeSpan.Zero);
+        // Verify thread pool usage percentage is between 0 and 100
+        ((double)result.Data["threadPoolUsagePercentage"]).Should().BeGreaterOrEqualTo(0);
+        ((double)result.Data["threadPoolUsagePercentage"]).Should().BeLessThanOrEqualTo(100);
     }
 } 

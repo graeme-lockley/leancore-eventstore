@@ -3,7 +3,6 @@ using EventStore.Api.Configuration;
 using EventStore.Domain.Health;
 using EventStore.Infrastructure.Health;
 using Microsoft.AspNetCore.RateLimiting;
-using Swashbuckle.AspNetCore.Filters;
 using System.Threading.RateLimiting;
 
 namespace EventStore.Api;
@@ -24,21 +23,21 @@ public class Program
         builder.Services.AddRateLimiter(options =>
         {
             // Global rate limit
-            options.AddFixedWindowLimiter("GlobalRateLimit", options =>
+            options.AddFixedWindowLimiter("GlobalRateLimit", configureOptions =>
             {
-                options.PermitLimit = 100;
-                options.Window = TimeSpan.FromMinutes(1);
-                options.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-                options.QueueLimit = 2;
+                configureOptions.PermitLimit = 100;
+                configureOptions.Window = TimeSpan.FromMinutes(1);
+                configureOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+                configureOptions.QueueLimit = 2;
             });
 
             // Health check specific rate limit
-            options.AddFixedWindowLimiter("HealthCheck", options =>
+            options.AddFixedWindowLimiter("HealthCheck", configureOptions =>
             {
-                options.PermitLimit = 30;
-                options.Window = TimeSpan.FromSeconds(10);
-                options.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-                options.QueueLimit = 2;
+                configureOptions.PermitLimit = 30;
+                configureOptions.Window = TimeSpan.FromSeconds(10);
+                configureOptions.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+                configureOptions.QueueLimit = 2;
             });
         });
 

@@ -22,7 +22,7 @@ public class HealthCheckService : IHealthCheckService
         IOptions<HealthCheckServiceOptions> options)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _options = options.Value ?? throw new ArgumentNullException(nameof(options));
         _healthChecks = new ConcurrentDictionary<string, IHealthCheck>();
         _cache = new ConcurrentDictionary<string, (HealthCheckResult, DateTimeOffset)>();
         _lastKnownStatus = new ConcurrentDictionary<string, HealthStatus>();

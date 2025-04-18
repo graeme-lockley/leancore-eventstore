@@ -64,24 +64,24 @@ public class HealthController : ControllerBase
         try
         {
             _logger.LogDebug("Processing health check request. RequestId: {RequestId}", requestId);
-            
+
             var results = await _healthCheckService.CheckAllAsync(cancellationToken);
             var response = CreateResponse(results);
-            
+
             _logger.LogInformation(
                 "Health check completed. Status: {Status}, Components: {ComponentCount}, RequestId: {RequestId}",
                 response.Status,
                 response.Components.Count,
                 requestId);
 
-            return response.Status == "Unhealthy" 
+            return response.Status == "Unhealthy"
                 ? StatusCode(StatusCodes.Status503ServiceUnavailable, response)
                 : Ok(response);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing health check request. RequestId: {RequestId}", requestId);
-            
+
             var errorResponse = new HealthCheckResponse(
                 "Unhealthy",
                 DateTimeOffset.UtcNow,
@@ -140,12 +140,12 @@ public class HealthController : ControllerBase
         try
         {
             _logger.LogDebug("Processing health check request for component: {ComponentName}", componentName);
-            
+
             var result = await _healthCheckService.CheckComponentAsync(componentName, cancellationToken);
-            
+
             // Handle component not found
-            if (result.Status == HealthStatus.Unhealthy && 
-                result.Description?.Contains("No health check registered") == true)
+            if (result.Status == HealthStatus.Unhealthy &&
+                result.Description.Contains("No health check registered"))
             {
                 return NotFound(new ComponentHealthResponse(
                     componentName,
@@ -178,7 +178,7 @@ public class HealthController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error checking health for component: {ComponentName}", componentName);
-            
+
             var errorResponse = new ComponentHealthResponse(
                 componentName,
                 "Unhealthy",
@@ -191,8 +191,7 @@ public class HealthController : ControllerBase
 
     private static HealthCheckResponse CreateResponse(IReadOnlyCollection<HealthCheckResult> results)
     {
-        if (results == null)
-            throw new ArgumentNullException(nameof(results));
+        ArgumentNullException.ThrowIfNull(results);
 
         var status = DetermineOverallStatus(results);
         var components = results.Select(CreateComponentResponse).ToList();
@@ -201,15 +200,14 @@ public class HealthController : ControllerBase
         ValidateResponse(status, components);
 
         return new HealthCheckResponse(
-            status.ToString(),
+            status,
             DateTimeOffset.UtcNow,
             components);
     }
 
     private static ComponentHealthResponse CreateComponentResponse(HealthCheckResult result)
     {
-        if (result == null)
-            throw new ArgumentNullException(nameof(result));
+        ArgumentNullException.ThrowIfNull(result);
 
         if (string.IsNullOrWhiteSpace(result.ComponentName))
             throw new ArgumentException("Component name cannot be null or empty", nameof(result));
@@ -222,7 +220,8 @@ public class HealthController : ControllerBase
             result.ComponentName,
             result.Status.ToString(),
             result.Status != HealthStatus.Unhealthy ? result.Description : null,
-            result.Status == HealthStatus.Unhealthy ? result.Description : null);
+            result.Status == HealthStatus.Unhealthy ? result.Description : null,
+            result.Data);
     }
 
     private static void ValidateResponse(string status, IReadOnlyCollection<ComponentHealthResponse> components)
@@ -270,4 +269,4 @@ public class HealthController : ControllerBase
 
         return HealthStatus.Healthy.ToString();
     }
-} 
+}

@@ -13,18 +13,46 @@ public class HealthyResponseExample : IExamplesProvider<HealthCheckResponse>
         return new HealthCheckResponse(
             "Healthy",
             DateTimeOffset.UtcNow,
-            new List<ComponentHealthResponse>
+            new[]
             {
-                new(
-                    "BlobStorage",
-                    "Healthy",
-                    "Blob storage is accessible",
-                    null),
-                new(
+                new ComponentHealthResponse(
                     "System",
                     "Healthy",
                     "System is operating normally",
-                    null)
+                    null,
+                    new Dictionary<string, object>
+                    {
+                        { "workingSetBytes", 104857600 }, // 100 MB
+                        { "privateMemoryBytes", 157286400 }, // 150 MB
+                        { "managedMemoryBytes", 52428800 }, // 50 MB
+                        { "gcCollectionCount", new Dictionary<string, int>
+                            {
+                                { "gen0", 100 },
+                                { "gen1", 10 },
+                                { "gen2", 1 }
+                            }
+                        },
+                        { "threadPool", new Dictionary<string, object>
+                            {
+                                { "availableWorkerThreads", 80 },
+                                { "availableIoThreads", 90 },
+                                { "maxWorkerThreads", 100 },
+                                { "maxIoThreads", 100 }
+                            }
+                        }
+                    }),
+                new ComponentHealthResponse(
+                    "BlobStorage",
+                    "Healthy",
+                    "Blob storage is accessible",
+                    null,
+                    new Dictionary<string, object>
+                    {
+                        { "responseTime", "50ms" },
+                        { "accountName", "mystorageaccount" },
+                        { "defaultServiceVersion", "2020-10-02" },
+                        { "staticWebsiteEnabled", false }
+                    })
             });
     }
 }
@@ -39,18 +67,46 @@ public class DegradedResponseExample : IExamplesProvider<HealthCheckResponse>
         return new HealthCheckResponse(
             "Degraded",
             DateTimeOffset.UtcNow,
-            new List<ComponentHealthResponse>
+            new[]
             {
-                new(
-                    "BlobStorage",
-                    "Healthy",
-                    "Blob storage is accessible",
-                    null),
-                new(
+                new ComponentHealthResponse(
                     "System",
                     "Degraded",
                     "System is experiencing high resource usage",
-                    null)
+                    null,
+                    new Dictionary<string, object>
+                    {
+                        { "workingSetBytes", 1073741824 }, // 1 GB
+                        { "privateMemoryBytes", 1610612736 }, // 1.5 GB
+                        { "managedMemoryBytes", 536870912 }, // 512 MB
+                        { "gcCollectionCount", new Dictionary<string, int>
+                            {
+                                { "gen0", 500 },
+                                { "gen1", 50 },
+                                { "gen2", 5 }
+                            }
+                        },
+                        { "threadPool", new Dictionary<string, object>
+                            {
+                                { "availableWorkerThreads", 25 },
+                                { "availableIoThreads", 30 },
+                                { "maxWorkerThreads", 100 },
+                                { "maxIoThreads", 100 }
+                            }
+                        }
+                    }),
+                new ComponentHealthResponse(
+                    "BlobStorage",
+                    "Healthy",
+                    "Blob storage is accessible but with high latency",
+                    null,
+                    new Dictionary<string, object>
+                    {
+                        { "responseTime", "450ms" },
+                        { "accountName", "mystorageaccount" },
+                        { "defaultServiceVersion", "2020-10-02" },
+                        { "staticWebsiteEnabled", false }
+                    })
             });
     }
 }
@@ -65,18 +121,44 @@ public class UnhealthyResponseExample : IExamplesProvider<HealthCheckResponse>
         return new HealthCheckResponse(
             "Unhealthy",
             DateTimeOffset.UtcNow,
-            new List<ComponentHealthResponse>
+            new[]
             {
-                new(
+                new ComponentHealthResponse(
+                    "System",
+                    "Unhealthy",
+                    null,
+                    "High memory usage detected",
+                    new Dictionary<string, object>
+                    {
+                        { "workingSetBytes", 2147483648 }, // 2 GB
+                        { "privateMemoryBytes", 3221225472 }, // 3 GB
+                        { "managedMemoryBytes", 1073741824 }, // 1 GB
+                        { "gcCollectionCount", new Dictionary<string, int>
+                            {
+                                { "gen0", 1000 },
+                                { "gen1", 100 },
+                                { "gen2", 10 }
+                            }
+                        },
+                        { "threadPool", new Dictionary<string, object>
+                            {
+                                { "availableWorkerThreads", 5 },
+                                { "availableIoThreads", 10 },
+                                { "maxWorkerThreads", 100 },
+                                { "maxIoThreads", 100 }
+                            }
+                        }
+                    }),
+                new ComponentHealthResponse(
                     "BlobStorage",
                     "Unhealthy",
                     null,
-                    "Failed to connect to blob storage"),
-                new(
-                    "System",
-                    "Healthy",
-                    "System is operating normally",
-                    null)
+                    "Failed to connect to blob storage",
+                    new Dictionary<string, object>
+                    {
+                        { "error", "Connection timeout" },
+                        { "timeoutMs", 5000 }
+                    })
             });
     }
 }
@@ -91,8 +173,15 @@ public class HealthyComponentResponseExample : IExamplesProvider<ComponentHealth
         return new ComponentHealthResponse(
             "BlobStorage",
             "Healthy",
-            "Blob storage is accessible with 150ms response time",
-            null);
+            "Blob storage is accessible",
+            null,
+            new Dictionary<string, object>
+            {
+                { "responseTime", "50ms" },
+                { "accountName", "mystorageaccount" },
+                { "defaultServiceVersion", "2020-10-02" },
+                { "staticWebsiteEnabled", false }
+            });
     }
 }
 
@@ -107,6 +196,11 @@ public class UnhealthyComponentResponseExample : IExamplesProvider<ComponentHeal
             "BlobStorage",
             "Unhealthy",
             null,
-            "Failed to connect to blob storage: Connection timeout after 5000ms");
+            "Failed to connect to blob storage",
+            new Dictionary<string, object>
+            {
+                { "error", "Connection timeout" },
+                { "timeoutMs", 5000 }
+            });
     }
 } 
