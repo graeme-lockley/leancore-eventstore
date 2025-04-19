@@ -7,7 +7,6 @@
 *.suo
 *.ntvs*
 *.njsproj
-*.sln
 *.sw?
 *.user
 
