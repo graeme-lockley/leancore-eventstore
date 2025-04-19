@@ -4,23 +4,20 @@ using Microsoft.Extensions.Logging;
 
 namespace EventStore.Application.Events.Handlers;
 
-public class TopicCreatedEventHandler : IDomainEventHandler<TopicCreated>
+public class TopicCreatedEventHandler(TopicCatalog topicCatalog, ILogger<TopicCreatedEventHandler> logger)
+    : IDomainEventHandler<TopicCreated>
 {
-    private readonly TopicCatalog _topicCatalog;
-    private readonly ILogger<TopicCreatedEventHandler> _logger;
+    private readonly TopicCatalog _topicCatalog = topicCatalog ?? throw new ArgumentNullException(nameof(topicCatalog));
 
-    public TopicCreatedEventHandler(TopicCatalog topicCatalog, ILogger<TopicCreatedEventHandler> logger)
-    {
-        _topicCatalog = topicCatalog ?? throw new ArgumentNullException(nameof(topicCatalog));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
+    private readonly ILogger<TopicCreatedEventHandler> _logger =
+        logger ?? throw new ArgumentNullException(nameof(logger));
 
     public async Task HandleAsync(TopicCreated @event, CancellationToken cancellationToken = default)
     {
         try
         {
             var topic = Domain.Entities.Topic.Create(@event.TopicName, @event.Description, @event.EventSchemas);
-            
+
             if (_topicCatalog.TopicExists(topic.Name))
             {
                 _logger.LogWarning("Topic with name '{TopicName}' already exists", topic.Name);
@@ -28,9 +25,9 @@ public class TopicCreatedEventHandler : IDomainEventHandler<TopicCreated>
             }
 
             await _topicCatalog.CreateTopicAsync(topic.Name, topic.Description, topic.EventSchemas, cancellationToken);
-            
+
             _logger.LogInformation(
-                "Successfully processed TopicCreated event for topic '{TopicName}'", 
+                "Successfully processed TopicCreated event for topic '{TopicName}'",
                 topic.Name);
         }
         catch (Exception ex)
