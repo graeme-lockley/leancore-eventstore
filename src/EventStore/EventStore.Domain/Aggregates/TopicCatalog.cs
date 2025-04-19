@@ -4,16 +4,10 @@ using EventStore.Domain.Events;
 
 namespace EventStore.Domain.Aggregates;
 
-public class TopicCatalog
+public class TopicCatalog(IEventPublisher eventPublisher)
 {
-    private readonly ConcurrentDictionary<string, Topic> _topics;
-    private readonly IEventPublisher _eventPublisher;
-
-    public TopicCatalog(IEventPublisher eventPublisher)
-    {
-        _topics = new ConcurrentDictionary<string, Topic>();
-        _eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
-    }
+    private readonly ConcurrentDictionary<string, Topic> _topics = new();
+    private readonly IEventPublisher _eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
 
     public IReadOnlyDictionary<string, Topic> Topics => _topics;
 
