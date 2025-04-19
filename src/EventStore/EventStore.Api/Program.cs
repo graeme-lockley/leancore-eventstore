@@ -59,12 +59,11 @@ public class Program
             new BlobServiceClientWrapper(sp.GetRequiredService<BlobServiceClient>()));
 
         // Configure health checks
-        builder.Services.AddHealthCheckService(options =>
+        builder.Services.AddHealthCheckService(configureOptions: options =>
         {
             options.EnableCaching = true;
             options.CacheDuration = TimeSpan.FromSeconds(30);
-            options.EnableParallelExecution = true;
-            options.HealthCheckTimeout = TimeSpan.FromSeconds(5);
+            TimeSpan.FromSeconds(5);
         });
 
         // Add System Health Check

@@ -3,8 +3,9 @@ using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using EventStore.Domain.Health;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
+using HealthCheckResult = EventStore.Domain.Health.HealthCheckResult;
+using IHealthCheck = EventStore.Domain.Health.IHealthCheck;
 
 namespace EventStore.Infrastructure.Health;
 
@@ -14,14 +15,9 @@ public interface IBlobServiceClient
     Task<Response<BlobServiceProperties>> GetPropertiesAsync(CancellationToken cancellationToken = default);
 }
 
-public class BlobServiceClientWrapper : IBlobServiceClient
+public class BlobServiceClientWrapper(BlobServiceClient client) : IBlobServiceClient
 {
-    private readonly BlobServiceClient _client;
-
-    public BlobServiceClientWrapper(BlobServiceClient client)
-    {
-        _client = client ?? throw new ArgumentNullException(nameof(client));
-    }
+    private readonly BlobServiceClient _client = client ?? throw new ArgumentNullException(nameof(client));
 
     public string AccountName
     {
@@ -48,38 +44,31 @@ public class BlobServiceClientWrapper : IBlobServiceClient
 /// <summary>
 /// Health check implementation for Azure Blob Storage
 /// </summary>
-public class BlobStorageHealthCheck : EventStore.Domain.Health.IHealthCheck, Microsoft.Extensions.Diagnostics.HealthChecks.IHealthCheck
+public class BlobStorageHealthCheck(
+    ILogger<BlobStorageHealthCheck> logger,
+    IBlobServiceClient client,
+    IOptions<BlobStorageHealthCheckOptions> options)
+    : IHealthCheck, Microsoft.Extensions.Diagnostics.HealthChecks.IHealthCheck
 {
-    private readonly ILogger<BlobStorageHealthCheck> _logger;
-    private readonly IBlobServiceClient _client;
-    private readonly BlobStorageHealthCheckOptions _options;
+    private readonly ILogger<BlobStorageHealthCheck> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly IBlobServiceClient _client = client ?? throw new ArgumentNullException(nameof(client));
+    private readonly BlobStorageHealthCheckOptions _options = options.Value ?? throw new ArgumentNullException(nameof(options));
 
     public string ComponentName => "BlobStorage";
 
-    public BlobStorageHealthCheck(
-        ILogger<BlobStorageHealthCheck> logger,
-        IBlobServiceClient client,
-        IOptions<BlobStorageHealthCheckOptions> options)
-    {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _client = client ?? throw new ArgumentNullException(nameof(client));
-        _options = options?.Value ?? throw new ArgumentNullException(nameof(options));
-    }
-
-    public async Task<EventStore.Domain.Health.HealthCheckResult> CheckHealthAsync(CancellationToken cancellationToken = default)
+    public async Task<HealthCheckResult> CheckHealthAsync(CancellationToken cancellationToken = default)
     {
         var result = await CheckHealthInternalAsync(cancellationToken);
-        return new EventStore.Domain.Health.HealthCheckResult(
+        return new HealthCheckResult(
             ComponentName,
             result.Status switch
             {
-                Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy => EventStore.Domain.Health.HealthStatus.Healthy,
-                Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded => EventStore.Domain.Health.HealthStatus.Degraded,
-                Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy => EventStore.Domain.Health.HealthStatus.Unhealthy,
-                _ => EventStore.Domain.Health.HealthStatus.Unhealthy
+                HealthStatus.Healthy => Domain.Health.HealthStatus.Healthy,
+                HealthStatus.Degraded => Domain.Health.HealthStatus.Degraded,
+                _ => Domain.Health.HealthStatus.Unhealthy
             },
             result.Description ?? "Unknown status",
-            result.Data?.ToDictionary(x => x.Key, x => x.Value));
+            result.Data.ToDictionary(x => x.Key, x => x.Value));
     }
 
     public Task<Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult> CheckHealthAsync(
@@ -100,14 +89,6 @@ public class BlobStorageHealthCheck : EventStore.Domain.Health.IHealthCheck, Mic
             var properties = await _client.GetPropertiesAsync(cts.Token);
             var data = new Dictionary<string, object>();
 
-            if (properties?.Value == null)
-            {
-                return new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult(
-                    Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
-                    "Unable to retrieve blob storage properties",
-                    data: data);
-            }
-
             if (_options.IncludeDetailedInfo)
             {
                 data = new Dictionary<string, object>
@@ -118,7 +99,7 @@ public class BlobStorageHealthCheck : EventStore.Domain.Health.IHealthCheck, Mic
             }
 
             return new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult(
-                Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Healthy,
+                HealthStatus.Healthy,
                 "Blob storage is accessible and responding",
                 data: data);
         }
@@ -126,7 +107,7 @@ public class BlobStorageHealthCheck : EventStore.Domain.Health.IHealthCheck, Mic
         {
             _logger.LogWarning("Blob storage health check timed out after {TimeoutMs}ms", _options.TimeoutMs);
             return new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult(
-                Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded,
+                HealthStatus.Degraded,
                 "Unable to retrieve blob storage properties",
                 data: new Dictionary<string, object>
                 {
@@ -138,7 +119,7 @@ public class BlobStorageHealthCheck : EventStore.Domain.Health.IHealthCheck, Mic
         {
             _logger.LogError(ex, "Error checking blob storage health");
             return new Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult(
-                Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
+                HealthStatus.Unhealthy,
                 "Error accessing blob storage",
                 ex,
                 _options.IncludeDetailedInfo ? new Dictionary<string, object>

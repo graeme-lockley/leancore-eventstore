@@ -49,7 +49,7 @@ public class HealthController : ControllerBase
     [HttpGet]
     [ProducesResponseType(typeof(HealthCheckResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(HealthCheckResponse), StatusCodes.Status503ServiceUnavailable)]
-    [ResponseCache(Duration = 10, VaryByQueryKeys = new[] { "*" })]
+    [ResponseCache(Duration = 10, VaryByQueryKeys = ["*"])]
     [SwaggerResponseExample(StatusCodes.Status200OK, typeof(HealthyResponseExample))]
     [SwaggerResponseExample(StatusCodes.Status503ServiceUnavailable, typeof(UnhealthyResponseExample))]
     public async Task<IActionResult> GetHealth(CancellationToken cancellationToken)
@@ -85,14 +85,13 @@ public class HealthController : ControllerBase
             var errorResponse = new HealthCheckResponse(
                 "Unhealthy",
                 DateTimeOffset.UtcNow,
-                new[]
-                {
+                [
                     new ComponentHealthResponse(
                         "System",
                         "Unhealthy",
                         null,
                         "Error processing health check request")
-                });
+                ]);
 
             return StatusCode(StatusCodes.Status503ServiceUnavailable, errorResponse);
         }
@@ -122,7 +121,7 @@ public class HealthController : ControllerBase
     [ProducesResponseType(typeof(ComponentHealthResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ComponentHealthResponse), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ComponentHealthResponse), StatusCodes.Status503ServiceUnavailable)]
-    [ResponseCache(Duration = 10, VaryByQueryKeys = new[] { "*" })]
+    [ResponseCache(Duration = 10, VaryByQueryKeys = ["*"])]
     [SwaggerResponseExample(StatusCodes.Status200OK, typeof(HealthyComponentResponseExample))]
     [SwaggerResponseExample(StatusCodes.Status503ServiceUnavailable, typeof(UnhealthyComponentResponseExample))]
     public async Task<IActionResult> GetComponentHealth(string componentName, CancellationToken cancellationToken)
@@ -230,8 +229,8 @@ public class HealthController : ControllerBase
             throw new InvalidOperationException($"Invalid health status: {status}");
 
         // Validate overall status matches component statuses
-        var hasUnhealthy = components.Any(c => c.Status == HealthStatus.Unhealthy.ToString());
-        var hasDegraded = components.Any(c => c.Status == HealthStatus.Degraded.ToString());
+        var hasUnhealthy = components.Any(c => c.Status == nameof(HealthStatus.Unhealthy));
+        var hasDegraded = components.Any(c => c.Status == nameof(HealthStatus.Degraded));
 
         if (healthStatus == HealthStatus.Unhealthy && !hasUnhealthy)
             throw new InvalidOperationException("Overall status is Unhealthy but no components are unhealthy");
@@ -251,10 +250,10 @@ public class HealthController : ControllerBase
             if (!Enum.TryParse<HealthStatus>(component.Status, out _))
                 throw new InvalidOperationException($"Invalid component status: {component.Status}");
 
-            if (component.Status == HealthStatus.Unhealthy.ToString() && string.IsNullOrWhiteSpace(component.Error))
+            if (component.Status == nameof(HealthStatus.Unhealthy) && string.IsNullOrWhiteSpace(component.Error))
                 throw new InvalidOperationException("Unhealthy component must have an error message");
 
-            if (component.Status != HealthStatus.Unhealthy.ToString() && !string.IsNullOrWhiteSpace(component.Error))
+            if (component.Status != nameof(HealthStatus.Unhealthy) && !string.IsNullOrWhiteSpace(component.Error))
                 throw new InvalidOperationException("Non-unhealthy component should not have an error message");
         }
     }
@@ -262,11 +261,11 @@ public class HealthController : ControllerBase
     private static string DetermineOverallStatus(IReadOnlyCollection<HealthCheckResult> results)
     {
         if (results.Any(r => r.Status == HealthStatus.Unhealthy))
-            return HealthStatus.Unhealthy.ToString();
+            return nameof(HealthStatus.Unhealthy);
 
         if (results.Any(r => r.Status == HealthStatus.Degraded))
-            return HealthStatus.Degraded.ToString();
+            return nameof(HealthStatus.Degraded);
 
-        return HealthStatus.Healthy.ToString();
+        return nameof(HealthStatus.Healthy);
     }
 }

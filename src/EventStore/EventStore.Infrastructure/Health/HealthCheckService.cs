@@ -9,24 +9,16 @@ namespace EventStore.Infrastructure.Health;
 /// <summary>
 /// Service for managing and executing health checks
 /// </summary>
-public class HealthCheckService : IHealthCheckService
+public class HealthCheckService(
+    ILogger<HealthCheckService> logger,
+    IOptions<HealthCheckServiceOptions> options)
+    : IHealthCheckService
 {
-    private readonly ConcurrentDictionary<string, IHealthCheck> _healthChecks;
-    private readonly ILogger<HealthCheckService> _logger;
-    private readonly HealthCheckServiceOptions _options;
-    private readonly ConcurrentDictionary<string, (HealthCheckResult Result, DateTimeOffset Timestamp)> _cache;
-    private readonly ConcurrentDictionary<string, HealthStatus> _lastKnownStatus;
-
-    public HealthCheckService(
-        ILogger<HealthCheckService> logger,
-        IOptions<HealthCheckServiceOptions> options)
-    {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _options = options.Value ?? throw new ArgumentNullException(nameof(options));
-        _healthChecks = new ConcurrentDictionary<string, IHealthCheck>();
-        _cache = new ConcurrentDictionary<string, (HealthCheckResult, DateTimeOffset)>();
-        _lastKnownStatus = new ConcurrentDictionary<string, HealthStatus>();
-    }
+    private readonly ConcurrentDictionary<string, IHealthCheck> _healthChecks = new();
+    private readonly ILogger<HealthCheckService> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+    private readonly HealthCheckServiceOptions _options = options.Value ?? throw new ArgumentNullException(nameof(options));
+    private readonly ConcurrentDictionary<string, (HealthCheckResult Result, DateTimeOffset Timestamp)> _cache = new();
+    private readonly ConcurrentDictionary<string, HealthStatus> _lastKnownStatus = new();
 
     public void RegisterHealthCheck(IHealthCheck healthCheck)
     {

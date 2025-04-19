@@ -13,9 +13,7 @@ public static class HealthCheckServiceExtensions
     /// </summary>
     /// <param name="services">The service collection</param>
     /// <param name="configureOptions">Optional action to configure the service options</param>
-    /// <returns>The service collection for chaining</returns>
-    public static IServiceCollection AddHealthCheckService(
-        this IServiceCollection services,
+    public static void AddHealthCheckService(this IServiceCollection services,
         Action<HealthCheckServiceOptions>? configureOptions = null)
     {
         if (configureOptions != null)
@@ -25,8 +23,6 @@ public static class HealthCheckServiceExtensions
 
         services.AddOptions<HealthCheckServiceOptions>();
         services.AddSingleton<IHealthCheckService, HealthCheckService>();
-
-        return services;
     }
 
     /// <summary>
@@ -34,13 +30,10 @@ public static class HealthCheckServiceExtensions
     /// </summary>
     /// <typeparam name="THealthCheck">The type of the health check to add</typeparam>
     /// <param name="services">The service collection</param>
-    /// <returns>The service collection for chaining</returns>
-    public static IServiceCollection AddHealthCheck<THealthCheck>(this IServiceCollection services)
+    public static void AddHealthCheck<THealthCheck>(this IServiceCollection services)
         where THealthCheck : class, IHealthCheck
     {
         services.AddScoped<THealthCheck>();
         services.AddScoped<IHealthCheck>(sp => sp.GetRequiredService<THealthCheck>());
-
-        return services;
     }
 } 
