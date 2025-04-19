@@ -9,6 +9,7 @@ Welcome to EventStore, an experimental lean core banking platform built using ev
 - Azure Blob Storage integration for durable event storage
 - Topic-based event organization with JSON schema validation
 - Health monitoring endpoints with detailed diagnostics
+- Continuous Integration with automated testing
 
 ## 🏗 Technical Architecture
 
@@ -26,6 +27,7 @@ Welcome to EventStore, an experimental lean core banking platform built using ev
 - **JSON Schema**: Event validation and structure definition
 - **xUnit**: Comprehensive test coverage
 - **FluentAssertions**: Expressive test assertions
+- **GitHub Actions**: Automated CI/CD pipeline
 
 ## 🚀 Getting Started
 
@@ -45,6 +47,7 @@ Welcome to EventStore, an experimental lean core banking platform built using ev
 
 2. Build and start the services using Docker Compose:
    ```bash
+   cd ./docker
    docker compose -f docker/docker-compose.yml up --build
    ```
    This will:
@@ -73,6 +76,15 @@ For local development and running tests:
    ```bash
    dotnet test
    ```
+
+### Continuous Integration
+
+The project uses GitHub Actions for continuous integration. On every push and pull request:
+- Builds the solution
+- Runs all tests with Azurite for Azure Storage emulation
+- Validates code quality
+
+You can view the CI status in the GitHub Actions tab of the repository.
 
 ## 🔌 API Endpoints
 
