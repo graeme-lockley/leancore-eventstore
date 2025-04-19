@@ -20,17 +20,17 @@ public class TopicCreatedEventHandler : IDomainEventHandler<TopicCreated>
         try
         {
             var topic = Domain.Entities.Topic.Create(@event.TopicName, @event.Description, @event.EventSchemas);
-
+            
             if (_topicCatalog.TopicExists(topic.Name))
             {
                 _logger.LogWarning("Topic with name '{TopicName}' already exists", topic.Name);
                 return;
             }
 
-            _topicCatalog.CreateTopic(topic.Name, topic.Description, topic.EventSchemas);
-
+            await _topicCatalog.CreateTopicAsync(topic.Name, topic.Description, topic.EventSchemas, cancellationToken);
+            
             _logger.LogInformation(
-                "Successfully processed TopicCreated event for topic '{TopicName}'",
+                "Successfully processed TopicCreated event for topic '{TopicName}'", 
                 topic.Name);
         }
         catch (Exception ex)

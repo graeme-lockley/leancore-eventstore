@@ -6,11 +6,18 @@ namespace EventStore.Domain.Aggregates;
 
 public class TopicCatalog
 {
-    private readonly ConcurrentDictionary<string, Topic> _topics = new();
+    private readonly ConcurrentDictionary<string, Topic> _topics;
+    private readonly IEventPublisher _eventPublisher;
+
+    public TopicCatalog(IEventPublisher eventPublisher)
+    {
+        _topics = new ConcurrentDictionary<string, Topic>();
+        _eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
+    }
 
     public IReadOnlyDictionary<string, Topic> Topics => _topics;
 
-    public Topic CreateTopic(string name, string description, IReadOnlyList<EventSchema> eventSchemas)
+    public async Task<Topic> CreateTopicAsync(string name, string description, IReadOnlyList<EventSchema> eventSchemas, CancellationToken cancellationToken = default)
     {
         var topic = Topic.Create(name, description, eventSchemas);
         
@@ -19,7 +26,6 @@ public class TopicCatalog
             throw new InvalidOperationException($"Topic with name '{name}' already exists");
         }
 
-        // Raise TopicCreated domain event
         var topicCreated = new TopicCreated
         {
             TopicName = topic.Name,
@@ -29,7 +35,7 @@ public class TopicCatalog
             EventSchemas = topic.EventSchemas
         };
 
-        // TODO: Add domain event publishing mechanism
+        await _eventPublisher.PublishAsync("_configuration", topicCreated, cancellationToken);
         
         return topic;
     }
