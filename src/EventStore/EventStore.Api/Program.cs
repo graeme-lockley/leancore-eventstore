@@ -1,6 +1,8 @@
 using Azure.Storage.Blobs;
 using EventStore.Api.Configuration;
+using EventStore.Domain.Events;
 using EventStore.Domain.Health;
+using EventStore.Infrastructure.Events;
 using EventStore.Infrastructure.Health;
 using Microsoft.AspNetCore.RateLimiting;
 using System.Threading.RateLimiting;
@@ -57,6 +59,10 @@ public class Program
         builder.Services.AddSingleton(new BlobServiceClient(connectionString));
         builder.Services.AddSingleton<IBlobServiceClient>(sp => 
             new BlobServiceClientWrapper(sp.GetRequiredService<BlobServiceClient>()));
+
+        // Configure Event Infrastructure
+        builder.Services.AddSingleton<IEventPublisher, BlobStorageEventPublisher>();
+        builder.Services.AddSingleton<IEventReader, BlobStorageEventReader>();
 
         // Configure health checks
         builder.Services.AddHealthCheckService(configureOptions: options =>

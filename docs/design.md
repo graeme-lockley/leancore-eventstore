@@ -19,20 +19,18 @@ solution/
 │   │   ├── EventStore.Domain/          # Domain entities, value objects, events, interfaces, and aggregates
 │   |   ├── EventStore.Infrastructure/  # Implementation details
 │   │   ├── EventStore.Integration/     # Integration events or specific triggers.  In this case Azure Blob Storage
-│   |   └── EventStore.Tests/
+│   |   └── EventStore.Tests/           # Integration and unit tests
 │   │
 │   ├── CoreBanking/                    # Banking domain implementation
 │   |   ├── CoreBanking.Domain/         # Domain entities, value objects, events, interfaces, and aggregates
 │   |   ├── CoreBanking.Application/    # Use cases, application logic, DTOs, commands, queries and handlers
 │   |   ├── CoreBanking.Infrastructure/ # Implementation details
 │   |   ├── CoreBanking.Api/            # Web API
-│   |   └── CoreBanking.Tests/
+│   |   └── CoreBanking.Tests/          # Integration and unit tests
 │   |
 │   └── infrastructure/                 # Banking domain implementation
 │       ├── workstation/                # Workstation setup
 │       └── azure/                      # Azure setup
-│
-├── tests/
 │
 └── docker/
     └── docker-compose.yml

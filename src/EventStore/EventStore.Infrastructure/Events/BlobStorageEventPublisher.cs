@@ -1,16 +1,17 @@
 using System.Text.Json;
 using Azure.Storage.Blobs;
 using EventStore.Domain.Events;
+using EventStore.Infrastructure.Azure;
 using Microsoft.Extensions.Logging;
 
 namespace EventStore.Infrastructure.Events;
 
 public class BlobStorageEventPublisher(
-    BlobServiceClient blobServiceClient,
+    IBlobServiceClient blobServiceClient,
     ILogger<BlobStorageEventPublisher> logger)
     : IEventPublisher
 {
-    private readonly BlobServiceClient _blobServiceClient =
+    private readonly IBlobServiceClient _blobServiceClient =
         blobServiceClient ?? throw new ArgumentNullException(nameof(blobServiceClient));
 
     private readonly ILogger<BlobStorageEventPublisher> _logger =
