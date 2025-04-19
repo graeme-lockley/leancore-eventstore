@@ -28,15 +28,15 @@ jobs:
         dotnet-version: '8.0.x'
         
     - name: Restore dependencies
-      run: dotnet restore
+      run: dotnet restore EventStore.sln
       working-directory: ./src/EventStore
         
     - name: Build
-      run: dotnet build --no-restore
+      run: dotnet build EventStore.sln --no-restore
       working-directory: ./src/EventStore
       
     - name: Test
-      run: dotnet test --no-build --verbosity normal
+      run: dotnet test EventStore.sln --no-build --verbosity normal
       working-directory: ./src/EventStore
       env:
         AzureStorage__ConnectionString: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://localhost:10000/devstoreaccount1;QueueEndpoint=http://localhost:10001/devstoreaccount1;TableEndpoint=http://localhost:10002/devstoreaccount1;" 
