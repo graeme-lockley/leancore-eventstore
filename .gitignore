@@ -9,6 +9,7 @@
 *.njsproj
 *.sln
 *.sw?
+*.user
 
 # OS specific
 .DS_Store
